@@ -22,7 +22,6 @@ import { fileURLToPath } from 'url';
 import { readSourceFiles, readPatterns, stashPerProjectArtifacts, restorePerProjectArtifacts, findBatchFilesWithBareLf } from './lib/utils.js';
 import { syncRootCommands } from './lib/root-commands-sync.mjs';
 import { createTransformer, PROVIDERS } from './lib/transformers/index.js';
-import { hooksJsonFor, buildClaudePluginHooksManifest } from './lib/transformers/hooks.js';
 import { createAllZips, createProviderZip } from './lib/zip.js';
 import { collectPluginVersions } from './lib/validate-plugin-versions.js';
 import { collectPluginManifestFindings } from './lib/validate-plugin-manifest.js';
@@ -557,21 +556,6 @@ function mirrorDirContentsSync(src, dest) {
   }
 }
 
-function syncRootHookManifests(rootDir) {
-  const synced = [];
-  for (const config of Object.values(PROVIDERS)) {
-    if (!config.emitHooks) continue;
-    const manifest = hooksJsonFor(config.emitHooks, { configDir: config.configDir });
-    if (!manifest) continue;
-    const rel = config.hooksManifestRel || path.join('hooks', 'hooks.json');
-    const dest = path.join(rootDir, config.configDir, rel);
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.writeFileSync(dest, JSON.stringify(manifest, null, 2) + '\n');
-    synced.push(path.join(config.configDir, rel).split(path.sep).join('/'));
-  }
-  return synced;
-}
-
 function syncRootPluginPayloads(distDir, rootDir) {
   const synced = [];
   for (const config of Object.values(PROVIDERS)) {
@@ -761,11 +745,6 @@ async function build() {
       console.log(`📟 Synced provider commands to: ${syncedCommands.join(', ')}`);
     }
 
-    const syncedHooks = syncRootHookManifests(ROOT_DIR);
-    if (syncedHooks.length > 0) {
-      console.log(`🪝 Synced hook manifests to: ${syncedHooks.join(', ')}`);
-    }
-
     const syncedPlugins = syncRootPluginPayloads(DIST_DIR, ROOT_DIR);
     if (syncedPlugins.length > 0) {
       console.log(`🪝 Synced provider plugins to: ${syncedPlugins.join(', ')}`);
@@ -803,12 +782,12 @@ async function build() {
     const grokPluginManifestDir = path.join(pluginRoot, '.grok-plugin');
     const pluginSkillsDir = path.join(pluginRoot, 'skills');
     const pluginAgentsDir = path.join(pluginRoot, 'agents');
-    const pluginHooksDir = path.join(pluginRoot, 'hooks');
     if (fs.existsSync(pluginManifestDir)) fs.rmSync(pluginManifestDir, { recursive: true });
     if (fs.existsSync(grokPluginManifestDir)) fs.rmSync(grokPluginManifestDir, { recursive: true });
     if (fs.existsSync(pluginSkillsDir)) fs.rmSync(pluginSkillsDir, { recursive: true });
     if (fs.existsSync(pluginAgentsDir)) fs.rmSync(pluginAgentsDir, { recursive: true });
-    if (fs.existsSync(pluginHooksDir)) fs.rmSync(pluginHooksDir, { recursive: true });
+    // Drop the hooks dir an earlier build left behind.
+    fs.rmSync(path.join(pluginRoot, 'hooks'), { recursive: true, force: true });
     // Clean up the short-lived mixed-provider subtree from early OpenAI plugin
     // development. The canonical Codex preview now lives in dist/openai/.
     for (const staleRel of ['.codex-plugin', 'assets']) {
@@ -848,7 +827,7 @@ async function build() {
       homepage: pluginManifest.homepage,
       repository: pluginManifest.repository,
       license: pluginManifest.license || 'MIT',
-      keywords: ['design', 'frontend', 'ui', 'ux', 'skills', 'hooks'],
+      keywords: ['design', 'frontend', 'ui', 'ux', 'skills'],
     };
     fs.mkdirSync(grokPluginManifestDir, { recursive: true });
     fs.writeFileSync(
@@ -866,13 +845,8 @@ async function build() {
       copyDirSync(claudeAgentsSrc, pluginAgentsDir);
     }
 
-    // The claude-code output resolves {{scripts_path}} to a project-relative
-    // path. Inside the plugin cache that path points into the user's project,
-    // so a dual install silently runs the project's older skill copy (issue
-    // #523). Rewrite the copied markdown to the skill-base-dir form.
+    // Plugin copy drops allowed-tools so non-interactive sessions can activate.
     rewritePluginMarkdownTree(pluginSkillsDir);
-    // Agents get the plugin-root variable, not the skill-base-dir token:
-    // a spawned agent never loads SKILL.md, so the token is undefined there.
     rewritePluginMarkdownTree(pluginAgentsDir, rewritePluginAgentMarkdown);
     verifyPluginSkillRewrite(path.join(pluginSkillsDir, 'impeccable', 'SKILL.md'));
     if (fs.existsSync(pluginAgentsDir)) {
@@ -880,17 +854,6 @@ async function build() {
         if (agentFile.endsWith('.md')) verifyPluginAgentRewrite(path.join(pluginAgentsDir, agentFile));
       }
     }
-
-    // Ship the design detector as a plugin-packaged hook. Claude Code and
-    // Grok Build both auto-discover `hooks/hooks.json` at the plugin root
-    // (Grok aliases CLAUDE_PLUGIN_ROOT → GROK_PLUGIN_ROOT), so marketplace /
-    // plugin-install users get PostToolUse + Stop without merging into project
-    // settings (that path remains the CLI's job for project-scoped installs).
-    fs.mkdirSync(pluginHooksDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(pluginHooksDir, 'hooks.json'),
-      JSON.stringify(buildClaudePluginHooksManifest(), null, 2) + '\n',
-    );
 
     console.log('📦 Built Claude Code / Grok Build plugin subtree at ./plugin/');
   } else {

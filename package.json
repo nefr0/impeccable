@@ -69,7 +69,6 @@
     "test:skill-workflow": "node scripts/run-tests.mjs skill-workflow",
     "test:live-svelte-adapter-deepseek": "node scripts/run-tests.mjs live-svelte-adapter-deepseek",
     "test:rust-changed": "node scripts/test-rust-changed.mjs",
-    "smoke:hooks": "node scripts/smoke-provider-hooks.mjs",
     "audit": "bun audit --audit-level=moderate",
     "prepack": "cp README.md README.repo.md && cp README.npm.md README.md",
     "postpack": "cp README.repo.md README.md && rm README.repo.md",

@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 
 import { buildCodexPluginManifest } from './codex-plugin.js';
-import { buildCodexPluginHooksManifest } from './transformers/hooks.js';
 
 function requirePath(absPath, label) {
   if (!fs.existsSync(absPath)) {
@@ -50,11 +49,6 @@ export function stageOpenAIPlugin(rootDir, distDir) {
     codexSkillSrc,
     path.join(pluginRoot, 'skills', 'impeccable'),
     { recursive: true },
-  );
-
-  writeJson(
-    path.join(pluginRoot, 'hooks', 'hooks.json'),
-    buildCodexPluginHooksManifest(),
   );
 
   return pluginRoot;

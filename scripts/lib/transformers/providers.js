@@ -20,9 +20,6 @@ export const PROVIDERS = {
     // `~/.cursor/agents/` at user level. Project agents take precedence over
     // user ones, so installs simply overwrite on update.
     agentFormat: 'cursor-md',
-    emitHooks: 'cursor',
-    // Cursor reads `.cursor/hooks.json`, not `.cursor/hooks/hooks.json`.
-    hooksManifestRel: 'hooks.json',
   },
   'claude-code': {
     provider: 'claude-code',
@@ -33,9 +30,6 @@ export const PROVIDERS = {
     // allowed-tools omitted: Claude Code blocks skill activation in non-interactive
     // sessions when the field is present (issue #736). Other providers keep it.
     agentFormat: 'claude-md',
-    emitHooks: 'claude',
-    // Project-local Claude Code hooks live in `.claude/settings.json`.
-    hooksManifestRel: 'settings.json',
   },
   gemini: {
     provider: 'gemini',
@@ -43,8 +37,6 @@ export const PROVIDERS = {
     configDir: '.gemini',
     displayName: 'Gemini',
     frontmatterFields: [],
-    emitHooks: 'gemini',
-    hooksManifestRel: 'settings.json',
   },
   dsh: {
     provider: 'dsh',
@@ -73,9 +65,6 @@ export const PROVIDERS = {
     // No agentFormat: the Codex subagent ships nested inside the skill's own
     // agents/ folder (see CODEX_SKILL_PROVIDERS in factory.js), which Codex
     // auto-discovers on install. No top-level .codex/agents/ sidecar is emitted.
-    emitHooks: 'codex',
-    // Codex discovers project-local hooks at `.codex/hooks.json`.
-    hooksManifestRel: 'hooks.json',
   },
   agents: {
     provider: 'agents',
@@ -99,9 +88,6 @@ export const PROVIDERS = {
     // The degraded/ fallbacks still ship for Copilot surfaces where the model
     // fails to delegate; the .agent.md files are the real subagent path.
     agentFormat: 'copilot-agent-md',
-    emitHooks: 'github',
-    // GitHub Copilot discovers repo-level hooks under `.github/hooks/*.json`.
-    hooksManifestRel: 'hooks/impeccable.json',
   },
   kiro: {
     provider: 'kiro',
@@ -186,10 +172,6 @@ export const PROVIDERS = {
     frontmatterFields: ['user-invocable', 'argument-hint', 'license', 'compatibility', 'metadata', 'allowed-tools'],
     // Project/user agents are markdown with YAML frontmatter (Claude-compatible).
     agentFormat: 'claude-md',
-    emitHooks: 'grok',
-    // Grok discovers project hooks from `.grok/hooks/*.json` (not a single
-    // settings.json). Claude tool-name matchers alias to Grok tools.
-    hooksManifestRel: 'hooks/impeccable.json',
   },
   antigravity: {
     provider: 'antigravity',
@@ -207,10 +189,7 @@ export const PROVIDERS = {
     // (license, compatibility, metadata) are spec-defined; harness-specific
     // extensions (user-invocable, argument-hint, allowed-tools) are NOT
     // recognized by the Hermes skill loader and would be silently ignored.
-    // The design hook ships as a Python plugin (skill/hermes-plugin/) under
-    // .hermes/plugins/, since Hermes hooks are in-process plugin callbacks.
     frontmatterFields: ['license', 'compatibility', 'metadata'],
-    pluginPayload: { source: 'hermes-plugin', dest: 'plugins/impeccable-design-hook' },
   },
   devin: {
     provider: 'devin',

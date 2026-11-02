@@ -7,12 +7,14 @@ import {
   generateYamlFrontmatter,
   generateYamlDocument,
   replacePlaceholders,
-  replaceScriptProviderMarker,
   compileProviderBlocks,
   stripRuleMarkers,
 } from '../utils.js';
 import { SKILL_CATEGORIES, CATEGORY_ORDER } from '../skill-categories.js';
-import { hooksJsonFor } from './hooks.js';
+
+const COMMAND_METADATA = JSON.parse(
+  fs.readFileSync(new URL('../command-metadata.json', import.meta.url), 'utf-8'),
+);
 
 // Preamble prepended to every generated degraded-mode fallback reference file.
 // These files are single-sourced from skill/agents/ so a harness with no
@@ -183,17 +185,16 @@ function buildCursorAgent(agent, body) {
  * Every surface that ships an agent body (the degraded fallback reference, the
  * Codex .toml nested inside the skill, and the native agent file) goes through
  * here, so all three resolve provider blocks, {{placeholders}}, rule markers,
- * and {{scripts_path}} the same way. The nested Codex .toml used to skip the
- * last two and shipped `node {{scripts_path}}/embed-prompt.mjs` literally.
+ * the same way.
  * {{reference_path}} is the skill's reference/ dir relative to emitDir: a
  * markdown link resolves against its own file, and each surface lands elsewhere.
  */
-function renderAgentBody(agent, { providerTags, placeholderKey, allSkillNames, scriptsPath, emitDir, skillDir }) {
+function renderAgentBody(agent, { providerTags, placeholderKey, allSkillNames, emitDir, skillDir }) {
   let body = compileProviderBlocks(agent.body, providerTags);
   body = replacePlaceholders(body, placeholderKey, [], allSkillNames);
   body = stripRuleMarkers(body);
   body = body.replace(/\{\{reference_path\}\}/g, path.relative(emitDir, path.join(skillDir, 'reference')).split(path.sep).join('/'));
-  return body.replace(/\{\{scripts_path\}\}/g, scriptsPath);
+  return body;
 }
 
 function buildAgentFile(config, agent, body) {
@@ -267,7 +268,6 @@ export function createTransformer(config) {
       .map((s) => s.name);
 
     let refCount = 0;
-    let scriptCount = 0;
     let agentCount = 0;
 
     for (const skill of skills) {
@@ -299,19 +299,16 @@ export function createTransformer(config) {
       // Replace {{command_hint}} in argument-hint with command names from metadata,
       // grouped by category with middle dots between groups for natural line-breaking.
       if (frontmatterObj['argument-hint']?.includes('{{command_hint}}')) {
-        const metaScript = skill.scripts?.find(s => s.name === 'command-metadata.json');
-        if (metaScript) {
-          const commands = Object.keys(JSON.parse(metaScript.content));
-          // Derive groups from SKILL_CATEGORIES, excluding the parent skill name
-          const grouped = CATEGORY_ORDER
-            .map(cat => commands.filter(c => SKILL_CATEGORIES[c] === cat).join('|'))
-            .filter(Boolean)
-            .join(' · ');
-          frontmatterObj['argument-hint'] = frontmatterObj['argument-hint'].replace(
-            '{{command_hint}}',
-            grouped
-          );
-        }
+        const commands = Object.keys(COMMAND_METADATA);
+        // Derive groups from SKILL_CATEGORIES, excluding the parent skill name
+        const grouped = CATEGORY_ORDER
+          .map(cat => commands.filter(c => SKILL_CATEGORIES[c] === cat).join('|'))
+          .filter(Boolean)
+          .join(' · ');
+        frontmatterObj['argument-hint'] = frontmatterObj['argument-hint'].replace(
+          '{{command_hint}}',
+          grouped
+        );
       }
 
       const frontmatter = generateYamlFrontmatter(frontmatterObj);
@@ -321,12 +318,9 @@ export function createTransformer(config) {
       skillBody = replacePlaceholders(skillBody, placeholderKey, commandNames, allSkillNames);
       skillBody = stripRuleMarkers(skillBody);
 
-      // Replace {{scripts_path}} with provider-aware path to skill's scripts directory
-      const scriptsPath = `${configDir}/skills/${skillName}/scripts`;
-      skillBody = skillBody.replace(/\{\{scripts_path\}\}/g, scriptsPath);
       if (bodyTransform) skillBody = bodyTransform(skillBody, skill);
 
-      const content = `${frontmatter}\n\n${skillBody}`.replace(/\{\{scripts_path\}\}/g, scriptsPath);
+      const content = `${frontmatter}\n\n${skillBody}`;
       writeFile(path.join(skillDir, 'SKILL.md'), content);
 
       if (writeOpenAIMetadata) {
@@ -342,7 +336,6 @@ export function createTransformer(config) {
           let refContent = compileProviderBlocks(ref.content, providerTags);
           refContent = replacePlaceholders(refContent, placeholderKey, [], allSkillNames);
           refContent = stripRuleMarkers(refContent);
-          refContent = refContent.replace(/\{\{scripts_path\}\}/g, scriptsPath);
           writeFile(path.join(refDir, `${ref.name}.md`), refContent);
           refCount++;
         }
@@ -360,26 +353,10 @@ export function createTransformer(config) {
         ensureDir(degradedDir);
         for (const agent of skill.agents) {
           const role = agent.name.replace(/^impeccable-/, '');
-          const body = renderAgentBody(agent, { providerTags, placeholderKey, allSkillNames, scriptsPath, emitDir: degradedDir, skillDir });
+          const body = renderAgentBody(agent, { providerTags, placeholderKey, allSkillNames, emitDir: degradedDir, skillDir });
           const content = `${DEGRADED_PREAMBLE}\n\n${body.replace(/^\s+/, '')}`;
           writeFile(path.join(degradedDir, `${role}.md`), content);
           refCount++;
-        }
-      }
-
-      // Copy script files
-      if (skill.scripts && skill.scripts.length > 0) {
-        const scriptsOutDir = path.join(skillDir, 'scripts');
-        ensureDir(scriptsOutDir);
-        for (const script of skill.scripts) {
-          const scriptContent = replaceScriptProviderMarker(script.content, placeholderKey, provider);
-          const outPath = path.join(scriptsOutDir, script.name);
-          writeFile(outPath, scriptContent);
-          // The launcher must stay executable in every provider copy; a
-          // plain write would drop the bit and `impeccable context` would
-          // fail with EACCES on the first session.
-          if (script.mode) fs.chmodSync(outPath, script.mode);
-          scriptCount++;
         }
       }
 
@@ -390,7 +367,7 @@ export function createTransformer(config) {
       if (CODEX_SKILL_PROVIDERS.has(provider)) {
         for (const agent of skill.agents || []) {
           if (agent.providers && !agent.providers.includes('codex')) continue;
-          const agentBody = renderAgentBody(agent, { providerTags, placeholderKey, allSkillNames, scriptsPath, emitDir: path.join(skillDir, 'agents'), skillDir });
+          const agentBody = renderAgentBody(agent, { providerTags, placeholderKey, allSkillNames, emitDir: path.join(skillDir, 'agents'), skillDir });
           const filename = `${agent.codexName || agent.name.replace(/-/g, '_')}.toml`;
           ensureDir(path.join(skillDir, 'agents'));
           writeFile(path.join(skillDir, 'agents', filename), buildCodexAgent(agent, agentBody));
@@ -423,12 +400,11 @@ export function createTransformer(config) {
     if (config.agentFormat) {
       const agentsDir = path.join(providerDir, `${configDir}/agents`);
       for (const skill of skills) {
-        const scriptsPath = `${configDir}/skills/${skill.name}/scripts`;
         for (const agent of skill.agents || []) {
           // Agents can declare `providers: <list>` to limit which harnesses
           // they emit to. Default (no field) ships everywhere with agentFormat.
           if (agent.providers && !agent.providers.includes(provider)) continue;
-          const body = renderAgentBody(agent, { providerTags, placeholderKey, allSkillNames, scriptsPath, emitDir: agentsDir, skillDir: path.join(skillsDir, skill.name) });
+          const body = renderAgentBody(agent, { providerTags, placeholderKey, allSkillNames, emitDir: agentsDir, skillDir: path.join(skillsDir, skill.name) });
           const agentFile = buildAgentFile(config, agent, body);
           if (!agentFile) continue;
           ensureDir(agentsDir);
@@ -438,39 +414,9 @@ export function createTransformer(config) {
       }
     }
 
-    // Emit the provider hook manifest when the provider opts in.
-    // Claude Code uses `.claude/settings.json`, Codex uses project-local
-    // `.codex/hooks.json`, and Cursor uses `.cursor/hooks.json`.
-    let hooksEmitted = false;
-    if (config.emitHooks) {
-      const manifest = hooksJsonFor(config.emitHooks, { configDir });
-      if (manifest) {
-        const hooksRel = config.hooksManifestRel || path.join('hooks', 'hooks.json');
-        writeFile(path.join(providerDir, configDir, hooksRel), JSON.stringify(manifest, null, 2) + '\n');
-        hooksEmitted = true;
-      }
-    }
-
-    // Emit a provider plugin verbatim from the skill's payloads (Hermes:
-    // skill/hermes-plugin/ -> .hermes/plugins/impeccable-design-hook/). A
-    // skill without the payload emits none; tests/hook-build.test.mjs pins
-    // that the real source carries it.
-    let pluginInfo = '';
-    const payloadFiles = config.pluginPayload ? skills.flatMap(skill => skill.payloads?.[config.pluginPayload.source] ?? []) : [];
-    if (payloadFiles.length > 0) {
-      for (const file of payloadFiles) {
-        writeFile(path.join(providerDir, configDir, config.pluginPayload.dest, file.name), file.content);
-      }
-      pluginInfo = ` (${config.pluginPayload.dest})`;
-    }
-
     const skillWord = skills.length === 1 ? 'skill' : 'skills';
     const refInfo = refCount > 0 ? ` (${refCount} reference files)` : '';
-    const scriptInfo = scriptCount > 0 ? ` (${scriptCount} script files)` : '';
     const agentInfo = agentCount > 0 ? ` (${agentCount} agent files)` : '';
-    const hooksInfo = hooksEmitted
-      ? ` (${config.hooksManifestRel || path.join('hooks', 'hooks.json')})`
-      : '';
-    console.log(`✓ ${displayName}: ${skills.length} ${skillWord}${refInfo}${scriptInfo}${agentInfo}${hooksInfo}${pluginInfo}`);
+    console.log(`✓ ${displayName}: ${skills.length} ${skillWord}${refInfo}${agentInfo}`);
   };
 }

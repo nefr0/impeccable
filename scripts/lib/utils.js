@@ -86,41 +86,6 @@ export function findBatchFilesWithBareLf(dirs) {
   return bad;
 }
 
-function readSkillScripts(scriptsDir) {
-  const scripts = [];
-
-  const walk = (dir) => {
-    const entries = fs.readdirSync(dir, { withFileTypes: true })
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    for (const entry of entries) {
-      const entryPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (dir === scriptsDir && entry.name === SKILL_BINARY_DIR) continue;
-        walk(entryPath);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-      if (PER_PROJECT_SCRIPT_ARTIFACTS.has(entry.name)) continue;
-
-      const relPath = path.relative(scriptsDir, entryPath).split(path.sep).join('/');
-      const raw = fs.readFileSync(entryPath, 'utf-8');
-      // `mode` travels with the entry so the launcher keeps its executable
-      // bit in every provider copy (see writeScriptFile in the transformer).
-      // A batch file ships with CRLF whatever this checkout holds (#1098).
-      scripts.push({
-        name: relPath,
-        content: isBatchFile(relPath) ? toCrlf(raw) : raw,
-        filePath: entryPath,
-        mode: fs.statSync(entryPath).mode & 0o777,
-      });
-    }
-  };
-
-  walk(scriptsDir);
-  return scripts;
-}
-
 /**
  * Parse frontmatter from markdown content
  * Returns { frontmatter: object, body: string }
@@ -272,15 +237,6 @@ export function readSourceFiles(rootDir) {
     }
   }
 
-  // PER_PROJECT_SCRIPT_ARTIFACTS (defined at module top) are excluded from
-  // the distributable skill so the build never bundles one project's state
-  // into another's.
-  const scripts = [];
-  const scriptsDir = path.join(skillDir, 'scripts');
-  if (fs.existsSync(scriptsDir)) {
-    scripts.push(...readSkillScripts(scriptsDir));
-  }
-
   // Provider payloads beside the skill: the dirs provider configs declare
   // as pluginPayload.source (skill/hermes-plugin/), emitted verbatim.
   const payloads = {};
@@ -339,7 +295,6 @@ export function readSourceFiles(rootDir) {
     body,
     filePath: skillMdPath,
     references,
-    scripts,
     agents,
     payloads,
   });
@@ -711,8 +666,7 @@ export function replacePlaceholders(content, provider, commandNames = [], allSki
   // (e.g., `/normalize` → `$normalize` for Codex). Require the slash to be
   // outside a path or URL so `.github/hooks/impeccable.json`,
   // `.codex/skills/impeccable`, and the launcher invocation
-  // `{{scripts_path}}/impeccable <verb>` (a `}}`-preceded path segment,
-  // resolved after this pass) remain untouched.
+  // and similar paths remain untouched.
   if (cmdPrefix !== '/' && allSkillNames.length > 0) {
     const sorted = [...allSkillNames].sort((a, b) => b.length - a.length);
     for (const name of sorted) {
