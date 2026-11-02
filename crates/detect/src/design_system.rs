@@ -5,7 +5,7 @@
 //!
 //! The DOM-backed `collectStaticDesignSystemFindings` lives with the static
 //! HTML engine (crates/html); it builds on the `pub` helpers here
-//! (`primary_font`, `is_allowed_*`, `css_color_label`, `extract_radius_tokens`,
+//! (`is_allowed_*`, `css_color_label`, `extract_radius_tokens`,
 //! `make_design_finding`, `is_transparent_css`, `STATIC_DESIGN_SKIP_TAGS`), so
 //! the html crate depends on this crate, never the reverse.
 
@@ -14,7 +14,6 @@ use std::rc::Rc;
 
 use impeccable_core::checks::measures::resolve_length_px;
 use impeccable_core::color::{parse_any_color, Rgba};
-use impeccable_core::constants::GENERIC_FONTS;
 use impeccable_core::findings::{finding, Finding};
 use impeccable_core::js::{self, ci, math_round, number_to_string, parse_float, parse_int};
 use once_cell::sync::Lazy;
@@ -104,26 +103,6 @@ re!(
     )
 );
 re!(
-    FONT_DECL_RE,
-    format!("{}{WS}*:{WS}*([^;}}\n]+)", ci("font-family"))
-);
-re!(
-    FONT_JS_RE,
-    format!("fontFamily{WS}*[:=]{WS}*[\"'`]([^\"'`]+)[\"'`]")
-);
-re!(
-    GOOGLE_FONT_RE,
-    format!(
-        "{}\\.{}\\.{}/{}2?\\?[^\"'{}){}<>]*",
-        ci("fonts"),
-        ci("googleapis"),
-        ci("com"),
-        ci("css"),
-        impeccable_core::js::WS_CHARS,
-        ""
-    )
-);
-re!(
     BORDER_RADIUS_RE,
     format!("{}{WS}*:{WS}*([^;}}\n]+)", ci("border-radius"))
 );
@@ -143,7 +122,6 @@ re!(
     TAILWIND_FONT_SIZE_RE,
     format!("(?-u:\\b)text-\\[(-?[0-9.]+(?:px|rem))\\]")
 );
-re!(GOOGLE_FAMILY_PARAM_RE, "[?&]family=([^&]+)");
 re!(
     IMPORTANT_TAIL_RE,
     format!("{WS}*{}{WS}*$", ci("!important"))
@@ -565,8 +543,8 @@ fn parse_scalar(raw: &str) -> Value {
 
 // ─── Normalized design system ────────────────────────────────────────────────
 
-/// JS `normalizeFontName`.
-pub fn normalize_font_name(value: &str) -> String {
+/// Trim, unquote, unescape `+` and lowercase a finding value.
+pub fn normalize_design_value(value: &str) -> String {
     let t = js::trim(value);
     let t = IMPORTANT_TAIL_RE.replace(t, "");
     let t = js::trim(&t);
@@ -574,60 +552,6 @@ pub fn normalize_font_name(value: &str) -> String {
     let t = t.replace('+', " ");
     let t = WS_RUN_RE.replace_all(&t, " ");
     js::to_lower_case(&t)
-}
-
-/// JS `splitFontStack`.
-pub fn split_font_stack(stack: &str) -> Vec<String> {
-    let t = IMPORTANT_TAIL_RE.replace(stack, "");
-    split_top_level_args(&t)
-        .into_iter()
-        .map(|font| normalize_font_name(&font))
-        .filter(|f| !f.is_empty())
-        .collect()
-}
-
-fn split_declared_font_stack(stack: &str) -> Vec<String> {
-    let t = IMPORTANT_TAIL_RE.replace(stack, "");
-    let mut fonts = Vec::new();
-    for part in split_top_level_args(&t) {
-        let trimmed = js::trim(&part);
-        let is_var = trimmed
-            .get(..4)
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("var("));
-        if is_var && trimmed.ends_with(')') {
-            let args = split_top_level_args(&trimmed[4..trimmed.len() - 1]);
-            if args.len() > 1 {
-                fonts.extend(split_declared_font_stack(&args[1..].join(",")));
-            }
-            continue;
-        }
-        let font = normalize_font_name(trimmed);
-        if !font.is_empty() {
-            fonts.push(font);
-        }
-    }
-    fonts
-}
-
-fn is_generic_font(font: &str) -> bool {
-    GENERIC_FONTS.contains(&font)
-}
-
-re!(NON_LITERAL_STACK_RE, format!("[$`{{}}]|{WS}\\+{WS}|\\|\\|"));
-
-fn is_literal_font_stack(stack: &str) -> bool {
-    !NON_LITERAL_STACK_RE.is_match(stack)
-}
-
-/// JS: design-system.mjs#primaryFont
-pub fn primary_font(stack: &str) -> String {
-    if stack.is_empty() || VAR_RE.is_match(stack) || !is_literal_font_stack(stack) {
-        return String::new();
-    }
-    split_font_stack(stack)
-        .into_iter()
-        .find(|f| !is_generic_font(f))
-        .unwrap_or_default()
 }
 
 /// JS: design-system.mjs#cssColorLabel
@@ -741,15 +665,12 @@ pub struct DesignSystem {
     pub source_path: Option<String>,
     pub sidecar_path: Option<String>,
     pub md_newer_than_json: bool,
-    /// JS `Set` (insertion order).
-    pub allowed_fonts: Vec<String>,
     /// JS `Map<colorKey, { color, labels }>` (insertion order).
     pub allowed_color_keys: Vec<(String, AllowedColor)>,
     pub allowed_radii: Vec<AllowedRadius>,
     pub allowed_font_sizes: Vec<AllowedFontSize>,
     pub allowed_shadow_colors: Vec<Rgba>,
     pub has_pill_radius: bool,
-    pub has_fonts: bool,
     pub has_colors: bool,
     pub has_radii: bool,
     pub has_font_sizes: bool,
@@ -848,25 +769,6 @@ fn add_sidecar_colors(out: &mut DesignSystem, sidecar: Option<&Value>) {
                 if let Value::String(v) = value {
                     add_design_color(out, v, Some(&format!("sidecar.{name}.tonalRamp[{index}]")));
                 }
-            }
-        }
-    }
-}
-
-fn add_typography_fonts(out: &mut DesignSystem, typography: Option<&Value>) {
-    let Some(Value::Object(typography)) = typography else {
-        return;
-    };
-    for role in typography.values() {
-        let Some(role) = role.as_object() else {
-            continue;
-        };
-        let Some(Value::String(ff)) = role.get("fontFamily") else {
-            continue;
-        };
-        for font in split_declared_font_stack(ff) {
-            if !is_generic_font(&font) && !out.allowed_fonts.contains(&font) {
-                out.allowed_fonts.push(font);
             }
         }
     }
@@ -1112,14 +1014,12 @@ pub fn normalize_design_system(
         md_newer_than_json,
         ..Default::default()
     };
-    add_typography_fonts(&mut out, frontmatter.get("typography"));
     add_typography_sizes(&mut out, frontmatter.get("typography"));
     add_color_object(&mut out, frontmatter.get("colors"), "colors");
     add_sidecar_colors(&mut out, sidecar);
     add_rounded_scale(&mut out, frontmatter.get("rounded"));
     add_sidecar_radii(&mut out, sidecar);
     add_sidecar_shadows(&mut out, sidecar);
-    out.has_fonts = !out.allowed_fonts.is_empty();
     out.has_colors = !out.allowed_color_keys.is_empty();
     out.has_radii = !out.allowed_radii.is_empty();
     out.has_font_sizes = out.allowed_font_sizes.iter().any(|e| !e.fluid);
@@ -1541,17 +1441,6 @@ pub fn load_design_system_for_target(
 
 // ─── Allowlist predicates ────────────────────────────────────────────────────
 
-/// JS: design-system.mjs#isAllowedFont
-pub fn is_allowed_font(font: &str, ds: Option<&DesignSystem>) -> bool {
-    if font.is_empty() || is_generic_font(font) {
-        return true;
-    }
-    match ds {
-        Some(ds) if ds.has_fonts => ds.allowed_fonts.iter().any(|f| f == font),
-        _ => true,
-    }
-}
-
 /// JS: design-system.mjs#isAllowedColorRaw
 pub fn is_allowed_color_raw(raw: &str, ds: Option<&DesignSystem>) -> bool {
     let Some(ds) = ds.filter(|d| d.has_colors) else {
@@ -1821,48 +1710,6 @@ pub fn make_design_finding(
     f
 }
 
-fn decode_google_family(value: &str) -> String {
-    let family = value.split(':').next().unwrap_or("").replace('+', " ");
-    crate::config::decode_uri_component(&family)
-}
-
-/// JS `primary.replace(/\b\w/g, ch => ch.toUpperCase())`.
-fn title_case_ascii_words(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut prev_word = false;
-    for c in s.chars() {
-        let is_word = c.is_ascii_alphanumeric() || c == '_';
-        if is_word && !prev_word {
-            out.push(c.to_ascii_uppercase());
-        } else {
-            out.push(c);
-        }
-        prev_word = is_word;
-    }
-    out
-}
-
-fn check_font_stack(
-    stack: &str,
-    file_path: &str,
-    line: f64,
-    ds: &DesignSystem,
-    context: &str,
-) -> Vec<Finding> {
-    let primary = primary_font(stack);
-    if primary.is_empty() || is_allowed_font(&primary, Some(ds)) {
-        return vec![];
-    }
-    let display = title_case_ascii_words(&primary);
-    vec![make_design_finding(
-        "design-system-font",
-        file_path,
-        &format!("{context}: {display} is not declared in DESIGN.md typography"),
-        line,
-        &display,
-    )]
-}
-
 /// JS: design-system.mjs#extractRadiusTokens
 /// A function is not a literal radius and is dropped whole, so calc()/min()
 /// operands are never judged (#1168); var() still yields its fallback (#687).
@@ -1956,43 +1803,6 @@ pub fn check_source_design_system(
         let line_num = (i + 1) as f64;
         if line_looks_commented(line) {
             continue;
-        }
-        if ds.has_fonts {
-            for m in FONT_DECL_RE.captures_iter(line) {
-                findings.extend(check_font_stack(
-                    &m[1],
-                    file_path,
-                    line_num,
-                    ds,
-                    "font-family",
-                ));
-            }
-            for m in FONT_JS_RE.captures_iter(line) {
-                findings.extend(check_font_stack(
-                    &m[1],
-                    file_path,
-                    line_num,
-                    ds,
-                    "fontFamily",
-                ));
-            }
-            for m in GOOGLE_FONT_RE.find_iter(line) {
-                let url = m.as_str();
-                for fm in GOOGLE_FAMILY_PARAM_RE.captures_iter(url) {
-                    let font = normalize_font_name(&decode_google_family(&fm[1]));
-                    if font.is_empty() || is_allowed_font(&font, Some(ds)) {
-                        continue;
-                    }
-                    let display = decode_google_family(&fm[1]);
-                    findings.push(make_design_finding(
-                        "design-system-font",
-                        file_path,
-                        &format!("Google Fonts: {display} is not declared in DESIGN.md typography"),
-                        line_num,
-                        &display,
-                    ));
-                }
-            }
         }
         if ds.has_colors {
             for m in CSS_COLOR_RE.find_iter(line) {
@@ -2089,8 +1899,6 @@ fn finding_ignore_or_value(item: &Finding) -> String {
     }
 }
 
-re!(GOOGLE_FONTS_LABEL_RE, ci("google fonts"));
-
 fn canonical_design_finding_key(item: &Finding) -> Option<String> {
     let ap = item.antipattern.as_str();
     if !ap.starts_with("design-system-") {
@@ -2098,19 +1906,6 @@ fn canonical_design_finding_key(item: &Finding) -> Option<String> {
     }
     let value = finding_ignore_or_value(item);
     match ap {
-        "design-system-font" => {
-            let context = if GOOGLE_FONTS_LABEL_RE.is_match(&item.snippet) {
-                "google-font"
-            } else {
-                "font"
-            };
-            let font = normalize_font_name(&value);
-            if font.is_empty() {
-                None
-            } else {
-                Some(format!("{ap}:{context}:{font}"))
-            }
-        }
         "design-system-color" => {
             if let Some(parsed) = parse_design_color(&value) {
                 return Some(format!("{ap}:color:{}", color_key(&parsed)));
@@ -2186,7 +1981,7 @@ fn dedupe_design_findings(findings: Vec<Finding>) -> Vec<Finding> {
             "{}\0{}\0{}",
             item.antipattern,
             number_to_string(if item.line != 0.0 { item.line } else { 0.0 }),
-            normalize_font_name(&value)
+            normalize_design_value(&value)
         );
         if seen.contains(&key) {
             continue;
@@ -2614,56 +2409,14 @@ mod tests {
     }
 
     #[test]
-    fn frontmatter_and_fonts() {
-        let md = "---\ntypography:\n  body:\n    fontFamily: \"Palatino, Georgia, serif\"\ncolors:\n  primary: \"#1a4d8f\"\n---\nbody";
+    fn frontmatter_and_colors() {
+        let md = "---\ncolors:\n  primary: \"#1a4d8f\"\n---\nbody";
         let fm = parse_frontmatter(md).unwrap();
         let ds = normalize_design_system(Some(&fm), None, None, None, false);
-        assert_eq!(
-            ds.allowed_fonts,
-            vec!["palatino".to_string(), "georgia".to_string()]
-        );
         assert!(ds.has_colors);
-        assert!(!is_allowed_font("inter", Some(&ds)));
-        let f = check_source_design_system(
-            "a { color: #ff0000; font-family: Inter }",
-            "x.css",
-            Some(&ds),
-        );
-        assert_eq!(f.len(), 2);
-        assert_eq!(
-            f[0].snippet,
-            "font-family: Inter is not declared in DESIGN.md typography"
-        );
-    }
-
-    #[test]
-    fn typography_var_fallback_declares_its_font_family() {
-        let md = "---\ntypography:\n  body:\n    fontFamily: \"var(--font-jakarta, 'Plus Jakarta Sans'), ui-sans-serif, sans-serif\"\n---\nbody";
-        let fm = parse_frontmatter(md).unwrap();
-        let ds = normalize_design_system(Some(&fm), None, None, None, false);
-
-        assert_eq!(ds.allowed_fonts, vec!["plus jakarta sans".to_string()]);
-        assert!(check_source_design_system(
-            "body { font-family: 'Plus Jakarta Sans', sans-serif; }",
-            "index.html",
-            Some(&ds),
-        )
-        .is_empty());
-    }
-
-    #[test]
-    fn typography_var_fallback_preserves_quoted_font_commas() {
-        let md = "---\ntypography:\n  body:\n    fontFamily: \"var(--font-brand, 'Foo, Bar'), sans-serif\"\n---\nbody";
-        let fm = parse_frontmatter(md).unwrap();
-        let ds = normalize_design_system(Some(&fm), None, None, None, false);
-
-        assert_eq!(ds.allowed_fonts, vec!["foo, bar".to_string()]);
-        assert!(check_source_design_system(
-            "body { font-family: 'Foo, Bar', sans-serif; }",
-            "index.html",
-            Some(&ds),
-        )
-        .is_empty());
+        let f = check_source_design_system("a { color: #ff0000; }", "x.css", Some(&ds));
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].snippet, "Undocumented color #ff0000 is outside DESIGN.md colors");
     }
 
     // upstream 1bcdf80f / #687: var() radius fallbacks leave the closing

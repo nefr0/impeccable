@@ -287,9 +287,7 @@ pub enum OwnOpacity {
 
 /// The rules that measure one element's text. Style tells about the page
 /// (fonts, borders) describe authored CSS whatever state is showing and are
-/// not gated; `italic-serif-display` reports one heading's display
-/// treatment, which a visitor meets only where the heading is shown, and
-/// `gradient-text` the ramp painted on one run of text, which a label inside
+/// not gated; `gradient-text` is the ramp painted on one run of text, which a label inside
 /// a closed menu (bt.cn's mobile dropdown, observations-28 row 20) or a
 /// watermark nobody sees never shows. The border path of `side-tab` and the
 /// container of `clipped-overflow-container` ask [`unpainted_text_box`]
@@ -302,7 +300,6 @@ pub const PAINT_GATED_TEXT_RULES: &[&str] = &[
     "extreme-negative-tracking",
     "gradient-text",
     "gray-on-color",
-    "italic-serif-display",
     "justified-text",
     "line-length",
     "low-contrast",
@@ -5464,7 +5461,6 @@ mod tests {
             BrowserFinding::new("bounce-easing", "animation: bounce"),
             BrowserFinding::new("dark-glow", "Colored box-shadow glow (#cdaca2) on dark background"),
             BrowserFinding::new("ai-color-palette", "Purple/violet gradient background"),
-            BrowserFinding::new("italic-serif-display", "italic serif h1 (playfair display) at 60px"),
             BrowserFinding::new("blinking-cursor", "i.caret — 5x10px blinking cursor"),
         ];
         findings.push(BrowserFinding::new("font-overuse-stand-in", "an ungated style tell"));
@@ -5489,7 +5485,6 @@ mod tests {
         assert_eq!(paint_gate("bounce-easing"), Some(PaintGate::Box));
         assert_eq!(paint_gate("dark-glow"), Some(PaintGate::Box));
         assert_eq!(paint_gate("ai-color-palette"), Some(PaintGate::Box));
-        assert_eq!(paint_gate("italic-serif-display"), Some(PaintGate::Text));
         assert_eq!(paint_gate("low-contrast"), Some(PaintGate::Text));
         assert_eq!(paint_gate("buried-raster"), Some(PaintGate::Raster));
         assert_eq!(paint_gate("blinking-cursor"), Some(PaintGate::Toggle));

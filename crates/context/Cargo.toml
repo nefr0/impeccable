@@ -21,12 +21,10 @@ regex = { workspace = true }
 once_cell = { workspace = true }
 sha2 = "0.10"
 flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
-ureq = { version = "2", default-features = false, features = ["tls", "json", "socks-proxy"] }
-rustls-native-certs = "0.8"
-webpki-roots = "1"
 unicode-normalization = "0.1.25"
 
 [dev-dependencies]
 # Stand-in upstream APIs in unit tests only; the runtime servers use
 # impeccable_common::http.
 tiny_http = "0.12"
+ureq = { version = "2", default-features = false }

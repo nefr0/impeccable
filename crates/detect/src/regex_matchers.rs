@@ -11,9 +11,8 @@ use impeccable_core::checks::rules::{
     DeclaredCorners, NOMINAL_CARD_WIDTH_PX,
 };
 use impeccable_core::color::is_neutral_color;
-use impeccable_core::constants::{EM_DASH_CHARS_PER_DASH, EM_DASH_FLOOR, OVERUSED_FONTS};
+use impeccable_core::constants::{EM_DASH_CHARS_PER_DASH, EM_DASH_FLOOR};
 use impeccable_core::findings::{finding, Finding};
-use impeccable_core::fonts::extract_google_font_families;
 use impeccable_core::js::{self, ci, math_round, number_to_string, parse_float, string_to_number};
 use impeccable_core::js_ext_a::{advance_utf16, slice_utf16_start, utf16_index, utf16_length};
 use once_cell::sync::Lazy;
@@ -1421,13 +1420,6 @@ fn is_safe_element(line: &str) -> bool {
     SAFE_ELEMENT_RE.is_match(line)
 }
 
-fn first_overused_google_font(text: &str) -> String {
-    extract_google_font_families(text)
-        .into_iter()
-        .find(|f| OVERUSED_FONTS.contains(&f.as_str()))
-        .unwrap_or_default()
-}
-
 const NEUTRAL_COLOR_KEYWORDS: &[&str] = &[
     "transparent",
     "currentcolor",
@@ -1643,45 +1635,6 @@ re!(
         ci("bottom"),
         ci("px"),
         ci("solid")
-    )
-);
-static OVERUSED_FONT_RE: Lazy<Regex> = Lazy::new(|| {
-    let names = [
-        "Inter",
-        "Roboto",
-        "Open Sans",
-        "Lato",
-        "Montserrat",
-        "Arial",
-        "Helvetica",
-        "Fraunces",
-        "Geist Sans",
-        "Geist Mono",
-        "Geist",
-        "Mona Sans",
-        "Plus Jakarta Sans",
-        "Space Grotesk",
-        "Recoleta",
-        "Instrument Sans",
-        "Instrument Serif",
-    ];
-    let alts: Vec<String> = names.iter().map(|n| ci(n)).collect();
-    Regex::new(&format!(
-        "{}{WS}*:{WS}*['\"]?({}){B}",
-        ci("font-family"),
-        alts.join("|")
-    ))
-    .unwrap()
-});
-re!(
-    GOOGLE_FONTS_URL_RE,
-    format!(
-        "{}\\.{}\\.{}/{}2?\\?[^\"'{ws})<>]*",
-        ci("fonts"),
-        ci("googleapis"),
-        ci("com"),
-        ci("css"),
-        ws = WS_CHARS
     )
 );
 re!(
@@ -2583,18 +2536,6 @@ pub static REGEX_MATCHERS: Lazy<Vec<Matcher>> = Lazy::new(|| {
                         .unwrap_or_else(|| has_border_radius(scope))
             },
             fmt: |m, _| m.whole().to_string(),
-        },
-        Matcher {
-            id: "overused-font",
-            find_all: |l| all(&OVERUSED_FONT_RE, l),
-            test: |_, _| true,
-            fmt: |m, _| m.whole().to_string(),
-        },
-        Matcher {
-            id: "overused-font",
-            find_all: |l| all(&GOOGLE_FONTS_URL_RE, l),
-            test: |m, _| !first_overused_google_font(m.whole()).is_empty(),
-            fmt: |m, _| format!("Google Fonts: {}", first_overused_google_font(m.whole())),
         },
         Matcher {
             id: "gradient-text",

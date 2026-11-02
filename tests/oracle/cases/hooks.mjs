@@ -35,23 +35,6 @@ export default [
       { verb: 'hook', stdin: stop() },
     ],
   },
-  {
-    id: 'hook-stop-baseline-import-only', workspace: 'hook-project', files: CACHE_FILES,
-    normalize: [['("stopBaseline":\\{"version":1,"engine":")[^"]+', 'g', '$1<ENGINE_VERSION>']],
-    setup(ws) {
-      fs.writeFileSync(`${ws}/src/report.ts`, "const report = `<style>body { font-family: Fraunces; }</style>`;\n");
-    },
-    steps: [
-      { verb: 'hook', stdin: claudeEdit('src/report.ts', {
-        tool_response: {
-          filePath: `${WS}/src/report.ts`,
-          originalFile: "import dead from 'dead';\nconst report = `<style>body { font-family: Fraunces; }</style>`;\n",
-          oldString: "import dead from 'dead';\n", newString: '', replaceAll: false, userModified: false,
-        },
-      }) },
-      { verb: 'hook', stdin: stop() },
-    ],
-  },
   // A DESIGN.md that declares a purple switches ai-color-palette's purple
   // forms off for the project's edits too (corpus decision
   // r3-23-ai-color-palette-brand-hue); without one the Stop review reports
@@ -286,8 +269,6 @@ export default [
   { id: 'hadmin-off-then-status', verb: 'hook-admin', workspace: 'hook-project', files: CACHE_FILES, steps: [{ args: ['off'] }, { args: ['status'] }, { args: ['on'] }, { args: ['status'] }] },
   { id: 'hadmin-ignore-rule', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-rule', 'Side-Tab', '--reason', 'because', 'reasons'], files: CACHE_FILES },
   { id: 'hadmin-ignore-rule-missing', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-rule'], files: CACHE_FILES },
-  { id: 'hadmin-ignore-rule-overused-font', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-rule', 'overused-font'], files: CACHE_FILES },
-  { id: 'hadmin-ignore-rule-overused-font-all', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-rule', 'overused-font', '--all-values'], files: CACHE_FILES },
   { id: 'hadmin-ignore-rule-unknown-flag', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-rule', 'side-tab', '--nope'], files: CACHE_FILES },
   { id: 'hadmin-ignore-file', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-file', 'src/legacy/**'], files: CACHE_FILES },
   { id: 'hadmin-ignore-file-local', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-file', 'src/legacy/**', '--local'], files: CACHE_FILES },
@@ -295,24 +276,13 @@ export default [
   { id: 'hadmin-ignore-file-reason', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-file', 'a/**', '--reason', 'x'], files: CACHE_FILES },
   { id: 'hadmin-ignore-file-two-globs', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-file', 'a/**', 'b/**'], files: CACHE_FILES },
   { id: 'hadmin-ignore-file-none', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-file'], files: CACHE_FILES },
-  { id: 'hadmin-ignore-value', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'overused-font', 'Inter'], files: CACHE_FILES },
-  { id: 'hadmin-ignore-value-multiword', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'overused-font', 'Space', 'Grotesk', '--reason', 'user confirmed:', 'brand'], files: CACHE_FILES },
   { id: 'hadmin-ignore-value-scoped', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'design-system-font-size', '*', '--file', 'src/z.js', '--files=src/a.js', '--file', 'src/a.js'], files: CACHE_FILES },
   { id: 'hadmin-ignore-value-wildcard-unscoped', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'design-system-font-size', '*'], files: CACHE_FILES },
-  { id: 'hadmin-ignore-value-wildcard-unscoped-font', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'overused-font', '*'], files: CACHE_FILES },
-  { id: 'hadmin-ignore-value-file-missing-glob', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'overused-font', 'Inter', '--file'], files: CACHE_FILES },
-  { id: 'hadmin-ignore-value-file-empty', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'overused-font', 'Inter', '--file='], files: CACHE_FILES },
-  { id: 'hadmin-ignore-value-file-flag-as-glob', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'overused-font', 'Inter', '--file', '--local'], files: CACHE_FILES },
-  { id: 'hadmin-ignore-value-local', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'overused-font', 'Inter', '--local'], files: CACHE_FILES },
-  { id: 'hadmin-ignore-value-missing', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'overused-font'], files: CACHE_FILES },
-  { id: 'hadmin-ignore-value-unknown-flag', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'overused-font', 'Inter', '--wat'], files: CACHE_FILES },
-  { id: 'hadmin-ignore-value-twice-updates-reason', verb: 'hook-admin', workspace: 'hook-project', files: CACHE_FILES, steps: [{ args: ['ignore-value', 'overused-font', 'Inter'] }, { args: ['ignore-value', 'overused-font', 'inter', '--reason=second'] }, { args: ['status'] }] },
   // upstream be87f5eb (#662): exact values for rules that cannot extract one are inert and refused
   { id: 'hadmin-ignore-value-inert-exact', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'cramped-padding', 'padding: 4px 8px'], files: CACHE_FILES },
   { id: 'hadmin-ignore-value-inert-scoped', verb: 'hook-admin', workspace: 'hook-project', args: ['ignore-value', 'side-tab', 'Inter', '--file', 'a.css'], files: CACHE_FILES },
   { id: 'hadmin-ignore-value-inert-then-wildcard', verb: 'hook-admin', workspace: 'hook-project', files: CACHE_FILES, steps: [{ args: ['ignore-value', 'cramped-padding', 'padding: 4px 8px'] }, { args: ['ignore-value', 'cramped-padding', '*', '--file', 'index.html'] }, { args: ['status'] }] },
   { id: 'hadmin-reset-empty', verb: 'hook-admin', workspace: 'hook-project', args: ['reset'], files: CACHE_FILES },
-  { id: 'hadmin-full-cycle', verb: 'hook-admin', workspace: 'hook-project', files: CACHE_FILES, steps: [{ args: ['ignore-rule', 'side-tab'] }, { args: ['ignore-file', 'x/**', '--local'] }, { args: ['ignore-value', 'overused-font', 'Inter'] }, { args: ['status'] }, { args: ['reset'] }, { args: ['status'] }] },
   {
     id: 'hadmin-legacy-migration', verb: 'hook-admin', workspace: 'hook-project', files: CACHE_FILES,
     setup: (ws) => { fs.mkdirSync(`${ws}/.impeccable`, { recursive: true }); fs.writeFileSync(`${ws}/.impeccable/config.json`, JSON.stringify({ hook: { enabled: true, quiet: true, ignoreRules: ['legacy-rule'], advisoryRules: 'include', consent: 'accepted' }, other: { keep: 1 } }, null, 2) + '\n'); },

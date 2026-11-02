@@ -28,7 +28,6 @@ const png = await import(L('png.mjs'));
 const raster = await import(L('raster.mjs'));
 const metrics = await import(L('image-metrics.mjs'));
 const ff = await import(L('font-fingerprint.mjs'));
-const fi = await import(L('font-index.mjs'));
 const hero = await import(L('hero-checks.mjs'));
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
@@ -136,30 +135,7 @@ savePng('text_s6.png', s6); savePng('text_s4.png', s4); savePng('text_heavy.png'
 const fpFull = (im) => { const f = ff.fingerprint(im); if (!f) return null; const o = {}; for (const k of Object.keys(f)) o[k] = f[k]; return o; };
 G.fingerprint = { s6: fpFull(s6), s4: fpFull(s4), heavy: fpFull(heavy), multi: fpFull(multi), sample: fpFull(sample) };
 const fS6 = ff.fingerprint(s6), fS4 = ff.fingerprint(s4), fHeavy = ff.fingerprint(heavy);
-G.distance = {
-  self: round(ff.distance(fS6, fS6), 10),
-  s6_s4: round(ff.distance(fS6, fS4), 10),
-  s6_heavy: round(ff.distance(fS6, fHeavy), 10),
-  grossGap_s6_heavy: (() => { const g = ff.grossGap(fS6, fHeavy); return { width: round(g.width, 10), weight: round(g.weight, 10) }; })(),
-  synthetic: round(ff.distance({ advX: 0.5, densTall: 0.5, contrast: 1 }, { advX: 0.5, densTall: 0.5, contrast: null }), 10),
-};
 G.features = ff.FEATURES;
-
-// ---- 7. font-index parity ----
-G.index = {};
-G.index.features = fi.INDEX_FEATURES;
-G.index.pack = fi.packVector(fS6);
-G.index.unpack = roundMap(fi.unpackVector(fi.packVector(fS6)), 6);
-G.index.route = { c8: fi.routeSize(8), c20: fi.routeSize(20), c30: fi.routeSize(30), c30caps: fi.routeSize(30, undefined, { allCaps: true }) };
-G.index.nonText = ['Barcode 39', 'Redacted Script', 'Rubik Glitch', 'Noto Sans', 'Inter', 'Honk', 'Zen Dots'].map((f) => ({ f, hit: fi.NON_TEXT_FAMILY.test(f) }));
-const index = fi.loadFontIndex();
-if (index) {
-  G.index.loaded = { schema: index.schema, sizes: index.sizes, entries: index.entries.length, features: index.features };
-  const cand = fi.candidatesFromIndex(fS6, index, { n: 10 });
-  G.index.candidates_s6 = cand.map((c) => ({ family: c.family, weight: c.weight, category: c.category, size: c.size, d: round(c.d, 8) }));
-  const candSample = fpFull(sample) ? fi.candidatesFromIndex(ff.fingerprint(sample), index, { n: 5 }) : [];
-  G.index.candidates_sample = candSample.map((c) => ({ family: c.family, weight: c.weight, d: round(c.d, 8) }));
-}
 
 // ---- 8. hero-checks parity ----
 // text region: comp crop vs a "build" crop that is smaller cap + shifted

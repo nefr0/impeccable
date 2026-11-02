@@ -5,7 +5,6 @@
 
 use crate::util::{self, jsp, Env};
 
-pub const API_BASE: &str = "https://impeccable.style";
 
 pub const PROVIDER_DIRS: &[&str] = &[
     ".claude", ".cursor", ".devin", ".dsh", ".gemini", ".agents", ".agent", ".github", ".grok", ".hermes", ".kiro",

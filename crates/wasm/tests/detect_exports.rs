@@ -101,42 +101,21 @@ fn inline_ignores_option() {
 
 #[test]
 fn design_system_option_is_the_design_md_inputs() {
-    let source = "h1 { font-family: 'Comic Sans MS'; }\n";
+    let source = "h1 { color: #ff0000; }\n";
     let options = serde_json::json!({
         "designSystem": {
-            "frontmatter": { "typography": { "display": { "fontFamily": "Fraunces, serif" } } }
+            "frontmatter": { "colors": { "primary": "#1a4d8f" } }
         }
     })
     .to_string();
     let with_ds = ids(&detect_text_json(source, "a.css", &options));
     assert!(
-        with_ds.iter().any(|id| id == "design-system-font"),
+        with_ds.iter().any(|id| id == "design-system-color"),
         "{with_ds:?}"
     );
     assert!(!ids(&detect_text_json(source, "a.css", "{}"))
         .iter()
-        .any(|id| id == "design-system-font"));
-}
-
-#[test]
-fn design_system_font_var_fallback_reaches_the_detect_export() {
-    let source = "body { font-family: 'Plus Jakarta Sans', sans-serif; }\n";
-    let options = serde_json::json!({
-        "designSystem": {
-            "frontmatter": {
-                "typography": {
-                    "body": {
-                        "fontFamily": "var(--font-jakarta, 'Plus Jakarta Sans'), ui-sans-serif, sans-serif"
-                    }
-                }
-            }
-        }
-    })
-    .to_string();
-
-    assert!(!ids(&detect_text_json(source, "a.css", &options))
-        .iter()
-        .any(|id| id == "design-system-font"));
+        .any(|id| id == "design-system-color"));
 }
 
 #[test]

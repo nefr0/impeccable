@@ -20,7 +20,7 @@ use impeccable_core::checks::rules::{
 use impeccable_core::checks::text_rules::{
     is_repeated_text_container, REPEATED_TEXT_CONTAINER_TAGS, REPEATED_TEXT_SKIP_SELECTOR,
 };
-use impeccable_core::constants::{overused_font_name, CSS_GENERIC_FONTS, OVERUSED_FONTS, SAFE_TAGS};
+use impeccable_core::constants::SAFE_TAGS;
 use impeccable_core::js::{self, number_to_string, parse_float};
 use impeccable_core::js_ext_b::{slice_utf16_prefix, utf16_len};
 use once_cell::sync::Lazy;
@@ -40,35 +40,6 @@ fn font_token(f: &str) -> String {
 /// JS: detect-html.mjs#checkStaticPageTypography(document, window)
 pub fn check_static_page_typography(doc: &StaticDocument) -> Vec<RuleHit> {
     let mut findings = Vec::new();
-    let mut overused_found: Vec<String> = Vec::new();
-    for el in doc.query_selector_all(
-        "p, h1, h2, h3, h4, h5, h6, li, td, th, dd, blockquote, figcaption, a, button, label, span, div",
-    ) {
-        if !has_nonblank_direct_text(&el) {
-            continue;
-        }
-        let ff = sv(el.style(), "fontFamily");
-        // JS-PARITY: detect-html.mjs#checkStaticPageTypography uses
-        // primaryFontFace(ff) whose default skip is CSS_GENERIC_FONTS, so a
-        // system stack keeps its system face as primary (fix #678).
-        let primary = ff
-            .split(',')
-            .map(font_token)
-            .find(|f| !f.is_empty() && !CSS_GENERIC_FONTS.contains(&f.as_str()));
-        let Some(primary) = primary else {
-            continue;
-        };
-        let primary = overused_font_name(&primary).map_or(primary, str::to_string);
-        if OVERUSED_FONTS.contains(&primary.as_str()) && !overused_found.contains(&primary) {
-            overused_found.push(primary);
-        }
-    }
-    for font in &overused_found {
-        findings.push(RuleHit::new(
-            "overused-font",
-            format!("Primary font: {}", font),
-        ));
-    }
     findings.extend(check_flat_type_hierarchy_from_doc(doc));
     findings
 }

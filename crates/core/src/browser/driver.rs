@@ -69,7 +69,6 @@ pub fn add_browser_findings(
 /// (JS `designSeen = { fonts: new Set(), colors: new Set(), radii: new Set() }`).
 #[derive(Debug, Default)]
 pub struct DesignSeen {
-    pub fonts: Vec<String>,
     pub colors: Vec<String>,
     pub radii: Vec<String>,
 }
@@ -82,8 +81,6 @@ pub struct DesignSystemConfig {
     /// `.eyebrow` written into DESIGN.md. A rule that would charge one of
     /// these is reviewing the design system rather than the change (REN-406).
     pub declared_selectors: Vec<String>,
-    pub has_fonts: bool,
-    pub allowed_fonts: Vec<String>,
     pub has_colors: bool,
     pub allowed_colors: Vec<crate::color::Rgba>,
     pub has_radii: bool,
@@ -100,8 +97,6 @@ const DESIGN_SKIP_TAGS: &[&str] = &[
 static WS_RE: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
     regex::Regex::new(&format!("{}+", crate::js::WS)).expect("WS_RE")
 });
-static VAR_RE: once_cell::sync::Lazy<regex::Regex> =
-    once_cell::sync::Lazy::new(|| regex::Regex::new(&format!("{}\\(", crate::js::ci("var"))).expect("VAR_RE"));
 static SLASH_RE: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
     regex::Regex::new(&format!("{ws}*/{ws}*", ws = crate::js::WS)).expect("SLASH_RE")
 });
@@ -161,63 +156,6 @@ fn truthy(v: &serde_json::Value) -> bool {
     }
 }
 
-/// JS: index.mjs#normalizeBrowserFontName(value)
-pub fn normalize_browser_font_name(value: &str) -> String {
-    let t = crate::js::trim(value);
-    // `.replace(/^["']|["']$/g, '')`: one leading and one trailing quote.
-    let t = t.strip_prefix(['"', '\'']).unwrap_or(t);
-    let t = t.strip_suffix(['"', '\'']).unwrap_or(t);
-    let t = t.replace('+', " ");
-    let t = WS_RE.replace_all(&t, " ");
-    crate::js::to_lower_case(&t)
-}
-
-fn split_browser_font_stack(stack: &str) -> Vec<String> {
-    let mut fonts = Vec::new();
-    let mut current = String::new();
-    let mut quote = None;
-    let mut escaped = false;
-    for ch in stack.chars() {
-        if escaped {
-            current.push(ch);
-            escaped = false;
-            continue;
-        }
-        if quote.is_some() && ch == '\\' {
-            current.push(ch);
-            escaped = true;
-            continue;
-        }
-        if quote == Some(ch) {
-            quote = None;
-        } else if quote.is_none() && (ch == '\'' || ch == '"') {
-            quote = Some(ch);
-        }
-        if ch == ',' && quote.is_none() {
-            fonts.push(current.trim().to_string());
-            current.clear();
-            continue;
-        }
-        current.push(ch);
-    }
-    if !current.trim().is_empty() {
-        fonts.push(current.trim().to_string());
-    }
-    fonts
-}
-
-/// JS: index.mjs#browserPrimaryFont(stack)
-pub fn browser_primary_font(stack: &str) -> String {
-    if stack.is_empty() || VAR_RE.is_match(stack) {
-        return String::new();
-    }
-    split_browser_font_stack(stack)
-        .into_iter()
-        .map(|font| normalize_browser_font_name(&font))
-        .find(|font| !font.is_empty() && !crate::constants::GENERIC_FONTS.contains(&font.as_str()))
-        .unwrap_or_default()
-}
-
 /// JS: index.mjs#browserDesignSystemConfig()
 pub fn browser_design_system_config(config: &BrowserConfig) -> Option<DesignSystemConfig> {
     let raw = config.design_system.as_ref()?;
@@ -229,13 +167,6 @@ pub fn browser_design_system_config(config: &BrowserConfig) -> Option<DesignSyst
     let arr = |k: &str| -> Vec<serde_json::Value> {
         obj.get(k).and_then(|v| v.as_array()).cloned().unwrap_or_default()
     };
-    let mut allowed_fonts: Vec<String> = Vec::new();
-    for v in arr("allowedFonts") {
-        let f = normalize_browser_font_name(&js_string_or_empty(&v));
-        if !f.is_empty() && !allowed_fonts.contains(&f) {
-            allowed_fonts.push(f);
-        }
-    }
     let allowed_colors: Vec<crate::color::Rgba> = arr("allowedColors")
         .iter()
         .filter_map(|c| {
@@ -264,8 +195,6 @@ pub fn browser_design_system_config(config: &BrowserConfig) -> Option<DesignSyst
     let is_true = |k: &str| matches!(obj.get(k), Some(serde_json::Value::Bool(true)));
     Some(DesignSystemConfig {
         declared_selectors,
-        has_fonts: is_true("hasFonts") && !allowed_fonts.is_empty(),
-        allowed_fonts,
         has_colors: is_true("hasColors") && !allowed_colors.is_empty(),
         allowed_colors,
         has_radii: is_true("hasRadii") && !allowed_radii.is_empty(),
@@ -410,23 +339,6 @@ pub fn check_element_design_system_dom(
         ignore_value: Some(value),
     };
 
-    if ds.has_fonts && browser_has_direct_text(dom, el) {
-        let font = browser_primary_font(&dom.style(el, "fontFamily"));
-        if !font.is_empty() && !ds.allowed_fonts.contains(&font) && !seen.fonts.contains(&font) {
-            seen.fonts.push(font.clone());
-            findings.push(ignore(
-                "design-system-font",
-                format!(
-                    "{}{} uses {}; not declared in DESIGN.md typography",
-                    tag,
-                    browser_sample_text(dom, el),
-                    font
-                ),
-                font,
-            ));
-        }
-    }
-
     if ds.has_colors {
         let mut color_checks: Vec<(String, String)> = Vec::new();
         if browser_has_direct_text(dom, el) {
@@ -517,53 +429,6 @@ pub fn decode_uri_component(s: &str) -> Option<String> {
         }
     }
     String::from_utf8(out).ok()
-}
-
-/// JS: index.mjs#decodeBrowserGoogleFamily(value)
-pub fn decode_browser_google_family(value: &str) -> String {
-    let family = value.split(':').next().unwrap_or("").replace('+', " ");
-    decode_uri_component(&family).unwrap_or(family)
-}
-
-static GOOGLE_FAMILY_RE: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
-    regex::Regex::new(r"[?&]family=([^&]+)").expect("GOOGLE_FAMILY_RE")
-});
-
-/// JS: index.mjs#checkBrowserDesignSystemSources(designSystem, seen)
-pub fn check_browser_design_system_sources(
-    dom: &dyn Dom,
-    ds: Option<&DesignSystemConfig>,
-    seen: &mut DesignSeen,
-) -> Vec<BrowserFinding> {
-    let Some(ds) = ds else { return Vec::new() };
-    if !ds.has_fonts {
-        return Vec::new();
-    }
-    let mut findings = Vec::new();
-    for link in dom
-        .query_all(None, "link[href*=\"fonts.googleapis.com/css\"]")
-        .unwrap_or_default()
-    {
-        let href = dom.attr(link, "href").unwrap_or_default();
-        for m in GOOGLE_FAMILY_RE.captures_iter(&href) {
-            let display = decode_browser_google_family(&m[1]);
-            let font = normalize_browser_font_name(&display);
-            if font.is_empty() || ds.allowed_fonts.contains(&font) || seen.fonts.contains(&font) {
-                continue;
-            }
-            seen.fonts.push(font);
-            findings.push(BrowserFinding {
-                type_: "design-system-font".to_string(),
-                detail: format!(
-                    "Google Fonts: {} is not declared in DESIGN.md typography",
-                    display
-                ),
-                severity: None,
-                ignore_value: Some(display),
-            });
-        }
-    }
-    findings
 }
 
 // ─── Regex-on-HTML pass ─────────────────────────────────────────────────────
@@ -2626,16 +2491,14 @@ fn hits(v: Vec<crate::checks::rules::RuleHit>) -> Vec<BrowserFinding> {
 // `disabledRules` waives whole rules; this applies the config's remaining
 // `ignoreValues` entries, which the CLI filters through
 // `isIgnoredFindingValue` (crates/detect config.rs), so a project waiver like
-// `overused-font = "geist mono"` reaches the overlay and the extension too.
+// `design-system-color = "#fff"` reaches the overlay and the extension too.
 
-/// The six rules whose findings carry a matchable value; keep in step with
+/// The rules whose findings carry a matchable value; keep in step with
 /// `extract_finding_ignore_value` in crates/detect. Everything else is
 /// suppressed by rule or by file scope, both already resolved into
 /// `disabledRules` before the scan message was sent.
 const DIRECT_VALUE_RULES: &[&str] = &[
-    "overused-font",
     "bounce-easing",
-    "design-system-font",
     "design-system-color",
     "design-system-radius",
     "design-system-font-size",
@@ -2645,29 +2508,6 @@ static EDGE_QUOTE_RE: once_cell::sync::Lazy<regex::Regex> =
     once_cell::sync::Lazy::new(|| regex::Regex::new(r#"^["']|["']$"#).expect("EDGE_QUOTE_RE"));
 static WS_RUN_RE: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
     regex::Regex::new(&format!("[{}]+", crate::js::WS_CHARS)).expect("WS_RUN_RE")
-});
-static PRIMARY_FONT_RE: once_cell::sync::Lazy<regex::Regex> =
-    once_cell::sync::Lazy::new(|| {
-        regex::Regex::new(&format!(
-            "(?i:Primary font):[{}]*([^()\n;]+)",
-            crate::js::WS_CHARS
-        ))
-        .expect("PRIMARY_FONT_RE")
-    });
-static GOOGLE_LABEL_RE: once_cell::sync::Lazy<regex::Regex> =
-    once_cell::sync::Lazy::new(|| {
-        regex::Regex::new(&format!(
-            "(?i:Google Fonts):[{}]*([^()\n;]+)",
-            crate::js::WS_CHARS
-        ))
-        .expect("GOOGLE_LABEL_RE")
-    });
-static FAMILY_RE: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
-    regex::Regex::new(&format!(
-        r#"(?i:font-family)[{ws}]*:[{ws}]*["']?([^'",;\n]+)"#,
-        ws = crate::js::WS_CHARS
-    ))
-    .expect("FAMILY_RE")
 });
 static COLOR_HEX_RE: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
     regex::Regex::new("^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$").expect("COLOR_HEX_RE")
@@ -2821,13 +2661,6 @@ fn browser_finding_ignore_value(f: &BrowserFinding) -> String {
     // match, so do not invent one from unrelated CSS text.
     if f.type_ == "bounce-easing" {
         return String::new();
-    }
-    // The design-system checks set `ignoreValue` on their findings; the detail
-    // fallback catches overused-font, whose value lives in its sentence.
-    for re in [&*PRIMARY_FONT_RE, &*GOOGLE_LABEL_RE, &*FAMILY_RE] {
-        if let Some(m) = re.captures(&f.detail) {
-            return normalize_browser_ignore_value(m.get(1).unwrap().as_str());
-        }
     }
     String::new()
 }
@@ -3011,7 +2844,6 @@ pub fn collect_browser_findings(dom: &dyn Dom, config: &BrowserConfig) -> Collec
             &glow_text,
         )));
         findings.extend(hits(ec::check_element_icon_tile_dom(dom, el)));
-        findings.extend(hits(ec::check_element_italic_serif_dom(dom, el)));
         findings.extend(hits(q::check_element_quality_dom(dom, el, config)));
         findings.extend(hits(super::line_breaks::check_element_line_breaks_dom_with(dom, el, &pretty_wrap)));
         findings.extend(hits(ec::check_element_oversized_h1_dom(dom, el)));
@@ -3138,11 +2970,6 @@ pub fn collect_browser_findings(dom: &dyn Dom, config: &BrowserConfig) -> Collec
         }
     };
 
-    page_pass(
-        &mut groups,
-        &mut page_level,
-        check_browser_design_system_sources(dom, design_system.as_ref(), &mut design_seen),
-    );
     page_pass(&mut groups, &mut page_level, pc::check_typography(dom));
     el_pass(&mut groups, tc::check_kicker_above_heading_dom(dom, design_system.as_ref()));
     page_pass(&mut groups, &mut page_level, hits(tc::check_numbered_section_labels_dom(dom)));
@@ -4125,32 +3952,16 @@ mod tests {
         assert!(browser_design_system_config(&ds_config(json!({ "present": false }))).is_none());
         let ds = browser_design_system_config(&ds_config(json!({
             "present": true,
-            "hasFonts": true, "allowedFonts": ["Inter", "'Inter'", "Space+Grotesk", ""],
             "hasColors": true, "allowedColors": [{ "r": 10, "g": 20, "b": 30 }, { "r": "x" }],
             "hasRadii": true, "allowedRadii": [8, "12", "abc"],
             "hasPillRadius": true
         })))
         .unwrap();
-        assert_eq!(ds.allowed_fonts, vec!["inter", "space grotesk"]);
         assert_eq!(ds.allowed_colors.len(), 1);
         assert_eq!(ds.allowed_radii, vec![8.0, 12.0]);
-        assert!(ds.has_fonts && ds.has_colors && ds.has_radii && ds.has_pill_radius);
-        // hasFonts without any usable font reads false.
-        let ds2 = browser_design_system_config(&ds_config(json!({
-            "present": true, "hasFonts": true, "allowedFonts": []
-        })))
-        .unwrap();
-        assert!(!ds2.has_fonts && !ds2.has_colors && !ds2.has_radii);
-    }
-
-    #[test]
-    fn primary_font_and_normalization() {
-        assert_eq!(browser_primary_font("\"Inter\", system-ui, sans-serif"), "inter");
-        assert_eq!(browser_primary_font("'Foo, Bar', sans-serif"), "foo, bar");
-        assert_eq!(browser_primary_font("system-ui, sans-serif"), "");
-        assert_eq!(browser_primary_font("system-ui, Roboto"), "roboto");
-        assert_eq!(browser_primary_font("var(--font)"), "");
-        assert_eq!(normalize_browser_font_name("  'Space+Grotesk'  "), "space grotesk");
+        assert!(ds.has_colors && ds.has_radii && ds.has_pill_radius);
+        let ds2 = browser_design_system_config(&ds_config(json!({ "present": true }))).unwrap();
+        assert!(!ds2.has_colors && !ds2.has_radii);
     }
 
     #[test]
@@ -4177,7 +3988,6 @@ mod tests {
         d.el_mut(p).check_visibility = Some(true);
         let ds = browser_design_system_config(&ds_config(json!({
             "present": true,
-            "hasFonts": true, "allowedFonts": ["Inter"],
             "hasColors": true, "allowedColors": [{ "r": 10, "g": 20, "b": 30 }],
             "hasRadii": true, "allowedRadii": [8], "hasPillRadius": false
         })))
@@ -4187,19 +3997,14 @@ mod tests {
         let types: Vec<&str> = f.iter().map(|x| x.type_.as_str()).collect();
         assert_eq!(
             types,
-            vec!["design-system-font", "design-system-color", "design-system-radius", "design-system-radius"]
+            vec!["design-system-color", "design-system-radius", "design-system-radius"]
         );
         assert_eq!(
             f[0].detail,
-            "p \"Hello world\" uses comic sans ms; not declared in DESIGN.md typography"
-        );
-        assert_eq!(f[0].ignore_value.as_deref(), Some("comic sans ms"));
-        assert_eq!(
-            f[1].detail,
             "text color rgb(255, 0, 0) on p \"Hello world\" is outside DESIGN.md colors"
         );
-        assert_eq!(f[2].detail, "border-radius 3px on p \"Hello world\" is outside the DESIGN.md rounded scale");
-        assert_eq!(f[3].ignore_value.as_deref(), Some("2px"));
+        assert_eq!(f[1].detail, "border-radius 3px on p \"Hello world\" is outside the DESIGN.md rounded scale");
+        assert_eq!(f[2].ignore_value.as_deref(), Some("2px"));
         // Second element with the same offenders adds nothing.
         let q = d.add(Some(body), "p");
         d.add_text(q, "Again");
@@ -4315,31 +4120,7 @@ mod tests {
     }
 
     #[test]
-    fn google_font_sources() {
-        let mut d = FakeDom::new();
-        let (html, _body) = d.with_page();
-        let head = d.add(Some(html), "head");
-        let link = d.add(Some(head), "link");
-        d.set_attr(
-            link,
-            "href",
-            "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Inter&family=Bad%ZZ",
-        );
-        d.add_selector(link, "link[href*=\"fonts.googleapis.com/css\"]");
-        let ds = browser_design_system_config(&ds_config(json!({
-            "present": true, "hasFonts": true, "allowedFonts": ["Inter"]
-        })))
-        .unwrap();
-        let mut seen = DesignSeen::default();
-        let f = check_browser_design_system_sources(&d, Some(&ds), &mut seen);
-        assert_eq!(f.len(), 2);
-        assert_eq!(
-            f[0].detail,
-            "Google Fonts: Space Grotesk is not declared in DESIGN.md typography"
-        );
-        assert_eq!(f[0].ignore_value.as_deref(), Some("Space Grotesk"));
-        // malformed escape: decodeURIComponent throws, the raw family stays
-        assert_eq!(f[1].ignore_value.as_deref(), Some("Bad%ZZ"));
+    fn decode_uri_component_handles_escapes() {
         assert_eq!(decode_uri_component("caf%C3%A9"), Some("café".to_string()));
         assert_eq!(decode_uri_component("%E2%82"), None);
     }
@@ -4517,21 +4298,20 @@ mod tests {
         // every scan stage with the empty shape (upstream commit 00095adb).
         let make_dom = || {
             let mut d = FakeDom::new();
-            let (html, _body) = d.with_page();
-            let head = d.add(Some(html), "head");
-            let link = d.add(Some(head), "link");
-            d.set_attr(link, "href", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700");
-            d.add_selector(link, "link[href*=\"fonts.googleapis.com/css\"]");
+            let (_html, body) = d.with_page();
+            let p = d.add(Some(body), "p");
+            d.add_text(p, "Hello");
+            d.set_styles(p, &[("color", "rgb(255, 0, 0)"), ("backgroundColor", "rgba(0, 0, 0, 0)")]);
+            d.el_mut(p).check_visibility = Some(true);
             d
         };
-        let ds = json!({ "present": true, "hasFonts": true, "allowedFonts": ["Inter"] });
+        let ds = json!({ "present": true, "hasColors": true, "allowedColors": [{ "r": 10, "g": 20, "b": 30 }] });
         let base = BrowserConfig { extension_mode: true, design_system: Some(ds), ..Default::default() };
 
         // The same page flags without skipScan...
         let d = make_dom();
         let out = collect_browser_findings(&d, &base);
         assert!(!out.groups.is_empty());
-        assert!(!out.page_level.is_empty());
 
         // ...and answers empty with it.
         let skip = BrowserConfig { skip_scan: true, ..base.clone() };
@@ -4553,16 +4333,12 @@ mod tests {
         // page, 50-scan.js), but everything the core produces has to be gone:
         // element groups, page-level findings, and the rule pack.
         let mut d = FakeDom::new();
-        let (html, body) = d.with_page();
-        let head = d.add(Some(html), "head");
-        let link = d.add(Some(head), "link");
-        d.set_attr(link, "href", "https://fonts.googleapis.com/css2?family=Poppins");
-        d.add_selector(link, "link[href*=\"fonts.googleapis.com/css\"]");
+        let (_html, body) = d.with_page();
         let p = d.add(Some(body), "p");
         d.add_text(p, "Hello");
-        d.set_styles(p, &[("fontFamily", "Poppins, sans-serif")]);
+        d.set_styles(p, &[("color", "rgb(255, 0, 0)"), ("backgroundColor", "rgba(0, 0, 0, 0)")]);
         d.el_mut(p).check_visibility = Some(true);
-        let ds = json!({ "present": true, "hasFonts": true, "allowedFonts": ["Inter"] });
+        let ds = json!({ "present": true, "hasColors": true, "allowedColors": [{ "r": 10, "g": 20, "b": 30 }] });
         let cfg = BrowserConfig {
             extension_mode: true,
             skip_scan: true,
@@ -4589,7 +4365,7 @@ mod tests {
             d.set_styles(
                 p,
                 &[
-                    ("fontFamily", "Poppins, sans-serif"),
+                    ("borderRadius", "3px"),
                     ("color", "rgb(255, 0, 0)"),
                     ("backgroundColor", "rgba(0, 0, 0, 0)"),
                 ],
@@ -4599,8 +4375,8 @@ mod tests {
         };
         let ds = json!({
             "present": true,
-            "hasFonts": true, "allowedFonts": ["Inter"],
-            "hasColors": true, "allowedColors": [{ "r": 10, "g": 20, "b": 30 }]
+            "hasColors": true, "allowedColors": [{ "r": 10, "g": 20, "b": 30 }],
+            "hasRadii": true, "allowedRadii": [8], "hasPillRadius": false
         });
         let base = BrowserConfig {
             extension_mode: true,
@@ -4615,19 +4391,19 @@ mod tests {
         };
 
         let unfiltered = collect_browser_findings(&make_dom(), &base);
-        assert!(types(&unfiltered).contains(&"design-system-font".to_string()));
+        assert!(types(&unfiltered).contains(&"design-system-radius".to_string()));
         assert!(types(&unfiltered).contains(&"design-system-color".to_string()));
 
-        // A font waiver drops its finding and leaves the unrelated one.
-        let font_waived = BrowserConfig {
+        // A radius waiver drops its finding and leaves the unrelated one.
+        let radius_waived = BrowserConfig {
             disabled_values: vec![DisabledValue {
-                rule: "design-system-font".into(),
-                value: "Poppins".into(),
+                rule: "design-system-radius".into(),
+                value: "3px".into(),
             }],
             ..base.clone()
         };
-        let out = collect_browser_findings(&make_dom(), &font_waived);
-        assert!(!types(&out).contains(&"design-system-font".to_string()));
+        let out = collect_browser_findings(&make_dom(), &radius_waived);
+        assert!(!types(&out).contains(&"design-system-radius".to_string()));
         assert!(types(&out).contains(&"design-system-color".to_string()));
 
         // Color waivers match by value, not by spelling: the browser reports
@@ -4641,12 +4417,12 @@ mod tests {
         };
         let out = collect_browser_findings(&make_dom(), &color_waived);
         assert!(!types(&out).contains(&"design-system-color".to_string()));
-        assert!(types(&out).contains(&"design-system-font".to_string()));
+        assert!(types(&out).contains(&"design-system-radius".to_string()));
 
         // A waiver for another rule's value changes nothing.
         let unrelated = BrowserConfig {
             disabled_values: vec![DisabledValue {
-                rule: "design-system-font".into(),
+                rule: "design-system-radius".into(),
                 value: "Inter".into(),
             }],
             ..base.clone()
@@ -4658,10 +4434,10 @@ mod tests {
         // list is ignored, exactly as the JS read it.
         let non_ext = BrowserConfig {
             extension_mode: false,
-            ..font_waived
+            ..radius_waived
         };
         let out = collect_browser_findings(&make_dom(), &non_ext);
-        assert!(types(&out).contains(&"design-system-font".to_string()));
+        assert!(types(&out).contains(&"design-system-radius".to_string()));
     }
 
     /// End to end through the collector: a page whose colors are all its own
@@ -4703,7 +4479,6 @@ mod tests {
         };
         let design_system = json!({
             "present": true,
-            "hasFonts": true, "allowedFonts": ["Inter"],
             "hasColors": true,
             "allowedColors": [
                 { "r": 15, "g": 182, "b": 172 },
@@ -4744,8 +4519,8 @@ mod tests {
         // fail the whole config.
         let cfg: BrowserConfig = serde_json::from_str(
             r##"{"extensionMode":true,"disabledValues":[
-                {"rule":"overused-font","value":"Geist+Mono"},
-                {"rule":"design-system-font"},
+                {"rule":"bounce-easing","value":"Geist+Mono"},
+                {"rule":"design-system-radius"},
                 {"value":"orphan"},
                 "nope",
                 {"rule":"design-system-color","value":"#FFF"}
@@ -4773,14 +4548,14 @@ mod tests {
         assert_eq!(browser_color_ignore_key("not a color"), "");
 
         // bounce-easing without a direct ignoreValue offers no value: the CLI
-        // routes it through the motion extractor and never the font regexes.
+        // routes it through the motion extractor.
         let bounce = BrowserFinding::new("bounce-easing", "font-family: Poppins");
         assert!(browser_finding_ignore_value(&bounce).is_empty());
-        let mut carried = BrowserFinding::new("overused-font", "Primary font: Poppins (etc)");
-        assert_eq!(browser_finding_ignore_value(&carried), "poppins");
+        let mut carried = BrowserFinding::new("design-system-radius", "border-radius 3px");
+        assert!(browser_finding_ignore_value(&carried).is_empty());
         carried.ignore_value = Some("Space Grotesk".into());
         assert_eq!(browser_finding_ignore_value(&carried), "space grotesk");
-        // A rule outside the six offers nothing to match.
+        // A rule outside the list offers nothing to match.
         assert!(browser_finding_ignore_value(&BrowserFinding::new("glow-effect", "x")).is_empty());
     }
 
@@ -5009,7 +4784,7 @@ mod page_level_form_tests {
         assert!(unreported.iter().any(|t| t == "low-contrast"), "{unreported:?}");
         assert!(unreported.iter().any(|t| t == "tiny-text"), "{unreported:?}");
         // Another rule left out of the report changes nothing.
-        let config = BrowserConfig { unreported_rules: vec!["overused-font".to_string()], ..BrowserConfig::default() };
+        let config = BrowserConfig { unreported_rules: vec!["gradient-text".to_string()], ..BrowserConfig::default() };
         let other = ids(&collect_browser_findings(&d, &config), p);
         assert!(!other.iter().any(|t| t == "tiny-text"), "{other:?}");
     }

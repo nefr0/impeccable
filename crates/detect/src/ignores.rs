@@ -37,9 +37,9 @@ Value options:
 
 Examples:
   impeccable ignores add-file \"src/legacy/**\"
-  impeccable ignores add-value overused-font Inter --reason \"Brand font\"
+  impeccable ignores add-value design-system-color \"#ff0000\" --reason \"Brand red\"
   impeccable ignores add-value design-system-color \"*\" --file \"src/demo.css\"
-  impeccable ignores remove-value overused-font Inter
+  impeccable ignores remove-value design-system-color \"#ff0000\"
 ";
 
 fn action_for(arg: &str) -> Option<&'static str> {
@@ -148,7 +148,7 @@ fn parse_value_args(args: &[String], allow_unscoped_wildcard: bool) -> R<ValueAr
     let value = normalize_ignore_value(&positionals.get(1..).unwrap_or(&[]).join(" "));
     if rule.is_empty() || value.is_empty() {
         return Err(
-            "Pass a rule id and value, e.g. impeccable ignores add-value overused-font Inter"
+            "Pass a rule id and value, e.g. impeccable ignores add-value design-system-color #ff0000"
                 .to_string(),
         );
     }
@@ -281,12 +281,9 @@ fn parse_rule_args(args: &[String]) -> R<(String, bool)> {
 
 fn add_rule(cwd: &str, args: &[String]) -> R<String> {
     let scope = parse_scope(args, false)?;
-    let (rule, all_values) = parse_rule_args(&scope.rest)?;
+    let (rule, _all_values) = parse_rule_args(&scope.rest)?;
     if rule.is_empty() {
         return Err("Pass a rule id, e.g. impeccable ignores add-rule side-tab".to_string());
-    }
-    if rule == "overused-font" && !all_values {
-        return Err("overused-font is value-specific by default. Use add-value overused-font <font>, or add-rule overused-font --all-values for broad suppression.".to_string());
     }
     let mut config = read_raw_detection_config(cwd, scope.local);
     if !config.ignore_rules.contains(&rule) {

@@ -16,7 +16,6 @@ pub mod constants;
 pub mod css;
 pub mod fdlibm_trig;
 pub mod findings;
-pub mod fonts;
 pub mod inline_ignores;
 pub mod js;
 pub mod js_ext_a;

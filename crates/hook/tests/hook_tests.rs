@@ -557,7 +557,7 @@ fn monorepo_design_document_locations_and_sidecars() {
         assert_eq!(ds.sidecar_path.as_deref(), Some(sidecar.as_str()));
         let findings = detector_detect_text(
             ".probe { color: #ff0000; font-family: Verdana; border-radius: 19px; }", &file, &scan);
-        for rule in ["design-system-color", "design-system-font", "design-system-radius"] {
+        for rule in ["design-system-color", "design-system-radius"] {
             assert!(findings.iter().any(|f| f.antipattern == rule), "{location}: {rule}");
         }
         let allowed = detector_detect_text(
@@ -626,23 +626,23 @@ fn edit_with_original(cwd: &str, file: &str, session: &str, before: &str, old: &
 }
 
 #[test]
-fn stop_baseline_import_only_edit_does_not_blame_existing_font() {
+fn stop_baseline_import_only_edit_does_not_blame_existing_gradient() {
     let t = Tmp::new();
     let cwd = t.path();
     t.write("package.json", "{}");
     // This is the actual working-tree preimage, not HEAD (which might differ).
-    let before = "import dead from 'dead';\nconst report = `<style>body { font-family: Fraunces; }</style>`;\n";
+    let before = "import dead from 'dead';\nconst report = `<style>h1 { background: linear-gradient(red, blue); background-clip: text; }</style>`;\n";
     let after = before.replacen("import dead from 'dead';\n", "", 1);
     let file = t.write("query.ts", &after);
     let r = rt(&cwd);
-    assert!(detector_detect_text(before, &file, &HookScanOptions::default()).iter().any(|f| f.antipattern == "overused-font"));
+    assert!(detector_detect_text(before, &file, &HookScanOptions::default()).iter().any(|f| f.antipattern == "gradient-text"));
     hook::run_hook(&r, &edit_with_original(&cwd, &file, "s1", before, "import dead from 'dead';\n", ""));
     let stop = hook::run_stop_hook(&r, &stop_event(&cwd, "s1"));
     assert!(stop.stdout.is_empty(), "{}", stop.stdout);
     assert_eq!(stop.audit["preExistingFindings"], json!(1));
     assert!(!t.read(".impeccable/hook.cache.json").contains("const report"), "do not persist source contents");
     assert!(!t.exists(".impeccable/config.local.json"), "baseline is not an ignore");
-    assert!(detector_detect_text(&after, &file, &HookScanOptions::default()).iter().any(|f| f.antipattern == "overused-font"), "explicit scans stay unchanged");
+    assert!(detector_detect_text(&after, &file, &HookScanOptions::default()).iter().any(|f| f.antipattern == "gradient-text"), "explicit scans stay unchanged");
 }
 
 #[test]
@@ -1111,7 +1111,7 @@ fn read_config_merges_shared_then_local_and_legacy_keys() {
     );
     t.write(
         ".impeccable/config.local.json",
-        r#"{"hook":{"enabled":false},"detector":{"ignoreRules":["a","c"],"extensions":[{"ext":".heex","engine":"html"}],"ignoreValues":[{"rule":"Overused-Font","value":"\"Inter\"","file":"a.css","files":["b.css","a.css"],"createdAt":"2026","reason":" r "}]}}"#,
+        r#"{"hook":{"enabled":false},"detector":{"ignoreRules":["a","c"],"extensions":[{"ext":".heex","engine":"html"}],"ignoreValues":[{"rule":"Design-System-Color","value":"\"Tomato\"","file":"a.css","files":["b.css","a.css"],"createdAt":"2026","reason":" r "}]}}"#,
     );
     let c = read_config(&cwd);
     assert!(!c.enabled);
@@ -1140,7 +1140,7 @@ fn read_config_merges_shared_then_local_and_legacy_keys() {
     let e = &c.ignore_values[0];
     assert_eq!(
         (e.rule.as_str(), e.value.as_str()),
-        ("overused-font", "inter")
+        ("design-system-color", "tomato")
     );
     assert_eq!(
         e.files.as_ref().unwrap(),
@@ -1211,10 +1211,10 @@ fn cache_round_trip_and_gc() {
     assert_eq!(dedupe_against_cache(&both, &keys, &mut cache2, "s", "/x/a.tsx").len(), 1);
     assert_eq!(finding_cache_keys(&[f("gradient-text", 5.0, "G", "d", "s")]), finding_cache_keys(&[g.clone()]));
     // same-line value-specific findings stay distinct
-    let mut a = f("overused-font", 1.0, "O", "d", "font-family: Inter");
-    a.extras.insert("ignoreValue".into(), json!("Inter"));
+    let mut a = f("design-system-color", 1.0, "O", "d", "color: #ff0000");
+    a.extras.insert("ignoreValue".into(), json!("#ff0000"));
     let mut b = a.clone();
-    b.extras.insert("ignoreValue".into(), json!("Roboto"));
+    b.extras.insert("ignoreValue".into(), json!("#00ff00"));
     assert_ne!(finding_cache_keys(&[a]), finding_cache_keys(&[b]));
     // a colour pair that gains a copy is the same finding (r14-t2)
     let pair = f("low-contrast", 0.0, "L", "d", "2.3:1 (need 4.5:1) — text #aaaaaa on #ffffff (and 2 more)");
@@ -1311,12 +1311,13 @@ fn filter_findings_rules_advisory_and_values() {
     let em = f("em-dash-overuse", 1.0, "E", "d", "s");
     let side = f("side-tab", 1.0, "S", "d", "s");
     let mut font = f(
-        "overused-font",
+        "design-system-color",
         2.0,
         "O",
         "d",
-        "body { font-family: \"Inter\", sans-serif; }",
+        "body { color: #ff0000; }",
     );
+    font.extras.insert("ignoreValue".into(), json!("#ff0000"));
     font.file = "/p/src/a.css".into();
     assert_eq!(
         filter_findings(vec![em.clone(), side.clone()], &c).len(),
@@ -1332,18 +1333,18 @@ fn filter_findings_rules_advisory_and_values() {
     );
     c.ignore_rules.clear();
     c.ignore_values = impeccable_detect::config::normalize_ignore_value_entries(&[
-        json!({"rule": "overused-font", "value": "inter"}),
+        json!({"rule": "design-system-color", "value": "#ff0000"}),
     ]);
     assert!(filter_findings(vec![font.clone()], &c).is_empty());
     c.ignore_values = impeccable_detect::config::normalize_ignore_value_entries(&[
-        json!({"rule": "overused-font", "value": "*", "files": ["src/*.css"]}),
+        json!({"rule": "design-system-color", "value": "*", "files": ["src/*.css"]}),
     ]);
     assert!(
         filter_findings(vec![font.clone()], &c).is_empty(),
         "wildcard scoped to a suffix glob"
     );
     c.ignore_values = impeccable_detect::config::normalize_ignore_value_entries(&[
-        json!({"rule": "overused-font", "value": "*"}),
+        json!({"rule": "design-system-color", "value": "*"}),
     ]);
     assert_eq!(
         filter_findings(vec![font.clone()], &c).len(),
@@ -1420,33 +1421,23 @@ fn render_template_dedupes_descriptions_and_quotes_hints() {
     let r = rt("/x");
     let c = HookConfig::default();
     let desc = "Long registry description that should appear once.";
+    let colored = |line: f64, value: &str| {
+        let mut x = f("design-system-color", line, "Off-palette color", desc, "color");
+        x.extras.insert("ignoreValue".into(), json!(value));
+        x
+    };
     let text = render_template(
         &r,
-        &[
-            f(
-                "overused-font",
-                2.0,
-                "Overused font",
-                desc,
-                "font-family: \"Roboto\"",
-            ),
-            f(
-                "overused-font",
-                9.0,
-                "Overused font",
-                desc,
-                "font-family: \"Inter\"",
-            ),
-        ],
-        "/x/fonts.css",
+        &[colored(2.0, "Tomato"), colored(9.0, "Teal")],
+        "/x/colors.css",
         &c,
         &opts("/x"),
     );
     assert_eq!(text.matches(desc).count(), 1);
     assert!(text.contains(
-        "- L9 [overused-font] Overused font. If intentional: `ignore-value overused-font Inter`."
+        "- L9 [design-system-color] Off-palette color. If intentional: `ignore-value design-system-color Teal`."
     ));
-    assert!(text.contains("`ignore-value overused-font Roboto`"));
+    assert!(text.contains("`ignore-value design-system-color Tomato`"));
     let bounce = render_template(
         &r,
         &[f(
@@ -1463,19 +1454,13 @@ fn render_template_dedupes_descriptions_and_quotes_hints() {
     assert!(bounce.contains("If intentional: `ignore-value bounce-easing bounce-ball`."));
     let hostile = render_template(
         &r,
-        &[f(
-            "overused-font",
-            1.0,
-            "Overused font",
-            "d",
-            "body { font-family: \"$(touch pwned)\", sans-serif; }",
-        )],
-        "/x/fonts.css",
+        &[colored(1.0, "$(touch pwned)")],
+        "/x/colors.css",
         &c,
         &opts("/x"),
     );
     assert!(hostile.contains(&format!(
-        "ignore-value overused-font {}",
+        "ignore-value design-system-color {}",
         quote_command_arg("$(touch pwned)", cfg!(windows))
     )));
     let no_hint = {
@@ -2257,11 +2242,11 @@ fn admin_ignore_value_scoping_and_idempotency() {
     let t = Tmp::new();
     let cwd = t.path();
     let r = rt(&cwd);
-    let (out, _, code) = admin_run(&r, &["ignore-value", "overused-font", "Inter"]);
+    let (out, _, code) = admin_run(&r, &["ignore-value", "design-system-color", "Tomato"]);
     assert_eq!(code, 0);
     assert_eq!(
         out,
-        format!("Added overused-font=inter to shared detector.ignoreValues ({}).\n", shared_config_rel())
+        format!("Added design-system-color=tomato to shared detector.ignoreValues ({}).\n", shared_config_rel())
     );
     assert!(!t.exists(".impeccable/config.local.json"));
     let cfg: Value = serde_json::from_str(&t.read(".impeccable/config.json")).unwrap();
@@ -2299,15 +2284,15 @@ fn admin_ignore_value_scoping_and_idempotency() {
     assert_eq!(out, format!("Added design-system-font-size=* scoped to src/a.js, src/z.js to local detector.ignoreValues ({}).\n", local_config_rel()));
     let (out, _, _) = admin_run(&r, &["status"]);
     assert!(out.contains(
-        "ignoreValues: overused-font=inter, design-system-font-size=* [src/a.js, src/z.js]\n"
+        "ignoreValues: design-system-color=tomato, design-system-font-size=* [src/a.js, src/z.js]\n"
     ));
     assert!(out.contains("ignoreRules:  side-tab\n"));
-    let (_, err, code) = admin_run(&r, &["ignore-value", "overused-font", "*"]);
+    let (_, err, code) = admin_run(&r, &["ignore-value", "design-system-color", "*"]);
     assert_eq!(code, 1);
-    assert_eq!(err, "Error: Wildcard value ignores must be scoped with --file <glob>, e.g. /impeccable hooks ignore-value design-system-font-size \"*\" --file \"src/widget.js\". To suppress the rule project-wide use /impeccable hooks ignore-rule overused-font --all-values.\n");
-    let (_, err, _) = admin_run(&r, &["ignore-value", "overused-font", "Inter", "--file="]);
+    assert_eq!(err, "Error: Wildcard value ignores must be scoped with --file <glob>, e.g. /impeccable hooks ignore-value design-system-font-size \"*\" --file \"src/widget.js\". To suppress the rule project-wide use /impeccable hooks ignore-rule design-system-color.\n");
+    let (_, err, _) = admin_run(&r, &["ignore-value", "design-system-color", "Tomato", "--file="]);
     assert_eq!(err, "Error: --file requires a non-empty glob\n");
-    let (_, err, _) = admin_run(&r, &["ignore-value", "overused-font", "Inter", "--shard"]);
+    let (_, err, _) = admin_run(&r, &["ignore-value", "design-system-color", "Tomato", "--shard"]);
     assert_eq!(err, "Error: Unknown ignore-value flag: --shard\n");
     let (_, err, code) = admin_run(&r, &["bogus"]);
     assert_eq!(code, 1);
@@ -2334,9 +2319,9 @@ fn admin_ignore_value_refuses_inert_exact_values() {
     assert_eq!(err, "Error: side-tab has no extractable ignore value. Use /impeccable hooks ignore-value side-tab \"*\" --file <glob> to suppress it in matching files.\n");
     assert!(!t.exists(".impeccable/config.json"), "a refused ignore must not write config");
 
-    let (out, _, code) = admin_run(&r, &["ignore-value", "overused-font", "Inter"]);
+    let (out, _, code) = admin_run(&r, &["ignore-value", "design-system-color", "Tomato"]);
     assert_eq!(code, 0);
-    assert!(out.contains("Added overused-font=inter"), "{out}");
+    assert!(out.contains("Added design-system-color=tomato"), "{out}");
 
     let (_, _, code) = admin_run(&r, &["ignore-value", "cramped-padding", "*", "--file", "index.html"]);
     assert_eq!(code, 0);

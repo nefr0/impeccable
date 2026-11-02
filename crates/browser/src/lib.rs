@@ -266,8 +266,6 @@ pub fn serialize_design_system_for_browser(ds: Option<&DesignSystem>) -> Value {
         .collect();
     json!({
         "present": true,
-        "hasFonts": ds.has_fonts,
-        "allowedFonts": ds.allowed_fonts,
         "hasColors": ds.has_colors,
         "allowedColors": colors,
         "hasRadii": ds.has_radii,

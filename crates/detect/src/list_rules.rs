@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn scope_keeps_only_rules_that_declare_it() {
         let rules = collect_catalog_rules(&["type".to_string()], false);
-        assert!(rules.iter().any(|r| r.id == "overused-font"));
+        assert!(rules.iter().any(|r| r.id == "flat-type-hierarchy"));
         assert!(rules
             .iter()
             .all(|r| r.scopes.unwrap_or(&[]).iter().any(|s| *s == "type")));
