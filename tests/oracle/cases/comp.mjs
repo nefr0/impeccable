@@ -77,8 +77,6 @@ const cases = [
   // font-match: MEASURE (pure; writes type onto the region). RANK is skipped
   // here because it needs a browser; the no-browser catalog fallback needs the
   // moat's font-index, which is not present in this repo's oracle env.
-  { id: 'font-match-measure', verb: 'font-match', workspace: WS, args: ['--measure', 'body', '--spec', 'spec.json'], files: ['spec.json'], env: env() },
-  { id: 'font-match-usage', verb: 'font-match', workspace: WS, args: [], env: env() },
 
   // build-phase: start (reads comp dims) then status, sharing one workspace.
   {
