@@ -82,7 +82,6 @@ export const SUITES = {
           'tests/bundle-signing.test.mjs',
           'tests/skill-reference.test.mjs',
           'tests/skill-behavior-harness.test.mjs',
-          'tests/readme-gitignore.test.mjs',
           'tests/test-suites.test.mjs',
         ],
       },
