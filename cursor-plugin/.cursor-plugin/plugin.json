@@ -17,6 +17,5 @@
   ],
   "logo": "assets/icon.png",
   "skills": "./skills/",
-  "agents": "./agents/",
-  "hooks": "./hooks/hooks.json"
+  "agents": "./agents/"
 }

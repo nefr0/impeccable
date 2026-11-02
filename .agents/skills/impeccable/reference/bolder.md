@@ -6,7 +6,7 @@ An open direction round owns the word first: "bolder" said while a direction dec
 
 ## Scope is sovereign
 
-"Everything else stays" is a literal instruction. Touch only the named target. Do not restyle its neighbors, do not migrate the page to a new idea, do not add colors, fonts, radii, shadows, or system primitives the surface does not already own. If the existing system genuinely cannot express the direction, do not expand it on your own. Ask with Codex's structured user-input/question tool when available, or directly in chat if it is not, and wait for the answer before continuing. Name the exact addition and the job it would do.
+"Everything else stays" is a literal instruction. Touch only the named target. Do not restyle its neighbors, do not migrate the page to a new idea, do not add colors, radii, shadows, or system primitives the surface does not already own. If the existing system genuinely cannot express the direction, do not expand it on your own. Ask with Codex's structured user-input/question tool when available, or directly in chat if it is not, and wait for the answer before continuing. Name the exact addition and the job it would do.
 
 ## Why it reads flat
 
@@ -26,7 +26,7 @@ Strip the copy out of your planned section and study the bare structure. Does th
 ## Before you finish
 
 - Everything outside the named target is unchanged.
-- No new color, font, or system primitive appeared without being asked for.
+- No new color or system primitive appeared without being asked for.
 - The conventions the section carried, including anything that drives an action, still work the same way.
 - The section is unmistakably the same brand, only more sure of itself.
 

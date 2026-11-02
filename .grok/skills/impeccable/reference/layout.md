@@ -22,13 +22,9 @@ When a sub-agent tool is available and permitted, run these independently; other
    - **Density:** Does the amount of information per region fit use frequency, decision complexity, and visitor mode?
    - **Adaptation:** At narrow, intermediate, wide, zoomed, and localized states, what reorders, collapses, wraps, scrolls, or remains fixed? Does DOM and focus order still agree with the visual order?
    - **Extremes:** Do long content, empty states, overlays, sticky elements, safe areas, and small touch targets expose structural failures?
-2. **Mechanical scan:** run:
+2. **Craft-floor scan:** read [craft-floor.md](craft-floor.md) and scan the target's layout rules against it yourself.
 
-```bash
-.grok/skills/impeccable/scripts/impeccable detect --json --scope layout [target files or dirs]
-```
-
-Also inspect arbitrary spacing, overflow, stacking, and container behavior the detector cannot resolve. Keep mechanical evidence out of the first assessment, then synthesize both passes before editing. A clean scan cannot prove hierarchy or rhythm.
+Also inspect arbitrary spacing, overflow, stacking, and container behavior a rule scan cannot resolve. Keep mechanical evidence out of the first assessment, then synthesize both passes before editing. A clean scan cannot prove hierarchy or rhythm.
 
 ## Set the spatial thesis
 
@@ -72,13 +68,3 @@ Variation is not a goal by itself. Repetition should support recognition; break 
 Answer each item with rendered or source evidence, then rerun the scan. Do not substitute a bare “yes” for verification.
 
 When the structure holds, hand off to `/impeccable polish`.
-
-## Live-mode signature params
-
-Every variant declares a coarse `density` parameter and authors spacing against `var(--p-density, 1)`.
-
-```json
-{"id":"density","kind":"range","min":0.6,"max":1.4,"step":0.05,"default":1,"label":"Density"}
-```
-
-Add one structural parameter only when the topology genuinely branches. Follow [live.md](live.md)'s parameter contract.

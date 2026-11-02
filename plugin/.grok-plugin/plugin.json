@@ -1,7 +1,7 @@
 {
   "name": "impeccable",
   "version": "4.8.0",
-  "description": "Design fluency for frontend development. 1 skill with 24 commands (/impeccable polish, /impeccable audit, /impeccable critique, etc.) and curated anti-pattern detection.",
+  "description": "Design fluency for frontend development. 1 skill with 22 commands (/impeccable polish, /impeccable audit, /impeccable critique, etc.) and curated design guidance.",
   "author": {
     "name": "Paul Bakaus",
     "email": "paul@paulbakaus.com"
@@ -14,7 +14,6 @@
     "frontend",
     "ui",
     "ux",
-    "skills",
-    "hooks"
+    "skills"
   ]
 }

@@ -57,9 +57,9 @@ Run comprehensive checks across 5 dimensions. Score each dimension 0-4 using the
 
 ### 5. Implementation Integrity (CRITICAL)
 
-Run the bundled detector and verify each finding in context. Look for repeated implementation shortcuts, design-system drift, misleading or decorative content, and structure that is interchangeable with an unrelated product. Keep deterministic findings separate from visual judgment and call out false positives.
+Scan the target against [craft-floor.md](craft-floor.md) yourself and verify each hit in context. Look for repeated implementation shortcuts, design-system drift, misleading or decorative content, and structure that is interchangeable with an unrelated product. Keep rule-scan findings separate from visual judgment and call out false positives.
 
-**Desktop apps** (Electron, NW.js, CEF, WebView2): launch the app with a local DevTools port (`--remote-debugging-port=9222`, or `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` for WebView2; keep it on 127.0.0.1, never exposed), seed the state to audit, keep the window on screen (a hidden one skips the pixel contrast reads), then run `.hermes/skills/impeccable/scripts/impeccable detect --cdp 9222 --target <part of the page URL or title> --json`. It returns the same JSON as a URL scan and leaves the window as found. Take screenshots through the harness's CDP tooling, and leave the window as you found it too. Tauri on macOS (WKWebView) and on Linux (WebKitGTK) expose no CDP: scan the source and say the rendered check did not run.
+**Desktop apps** (Electron, NW.js, CEF, WebView2): launch the app with a local DevTools port (`--remote-debugging-port=9222`, or `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` for WebView2; keep it on 127.0.0.1, never exposed), seed the state to audit, keep the window on screen (a hidden one skips the pixel contrast reads), then inspect the window through the harness's CDP tooling and take screenshots there. Leave the window as you found it. Tauri on macOS (WKWebView) and on Linux (WebKitGTK) expose no CDP: scan the source and say the rendered check did not run.
 
 **Score 0-4**: 0=systemic drift, 1=major repeated failures, 2=several verified issues, 3=minor isolated issues, 4=coherent and intentional
 
@@ -79,7 +79,7 @@ Run the bundled detector and verify each finding in context. Look for repeated i
 **Rating bands**: 18-20 Excellent (minor polish), 14-17 Good (address weak dimensions), 10-13 Acceptable (significant work needed), 6-9 Poor (major overhaul), 0-5 Critical (fundamental issues)
 
 ### Implementation Integrity Verdict
-**Start here.** Pass/fail: does the implementation express a coherent product-specific system? Cite verified evidence and detector findings.
+**Start here.** Pass/fail: does the implementation express a coherent product-specific system? Cite verified evidence and craft-floor scan findings.
 
 ### Executive Summary
 - Audit Health Score: **??/20** ([rating band])

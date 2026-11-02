@@ -2,7 +2,7 @@
 
 Polish is refinement, never concealed redesign. Preserve the incumbent visual world, content, behavior, and everything outside scope. If the concept itself is wrong, say so and recommend redesign or `bolder` instead of smuggling in a replacement.
 
-A detector result is defect evidence, not proof of quality. Inspect the rendered experience and real interaction path.
+A craft-floor scan hit is defect evidence, not proof of quality. Inspect the rendered experience and real interaction path.
 
 ## 1. Establish the system
 
@@ -25,14 +25,6 @@ Use the feature yourself at the surface's representative sizes: desktop and mobi
 - the intended quality bar and time available;
 - known constraints or deliberately unfinished work;
 - the states, content lengths, roles, and input methods users will actually encounter.
-
-If a prior critique exists, use it as one input:
-
-```bash
-.veto/skills/impeccable/scripts/impeccable critique-storage latest "<resolved target>" --json
-```
-
-Exit 0 returns JSON with the latest snapshot's `body` and an exact `snapshot_file` identity. Retain `snapshot_file` until the end of the pass. For a local file target, the helper compares the file's exact current content fingerprint with the fingerprint captured by critique. Unchanged staged, unstaged, or untracked content remains current; any byte change, deletion, or replacement with a non-file closes the backlog it identified while preserving its trend history and exits 2. A URL target has no local fingerprint and remains current until explicitly closed. When current, incorporate relevant P0/P1 findings from `body` and name the snapshot read. Exit 2 means none exists or the target changed. Perform an independent pass either way.
 
 ## 3. Triage
 
@@ -58,7 +50,7 @@ Do not perfect one corner while leaving the rest below the same quality bar.
 
 - Align to the project's grid and spacing scale; fix optical as well as mathematical alignment.
 - Group related content tightly and separate distinct groups generously.
-- Keep same-role typography consistent; test measure, wrapping, localization expansion, zoom, and font loading.
+- Keep same-role typography consistent; test measure, wrapping, localization expansion, and zoom.
 - Verify every supported viewport rather than correcting only the current screenshot.
 
 ### Color, imagery, and icons
@@ -92,14 +84,7 @@ Walk the complete path again with mouse, keyboard, and touch where applicable. C
 - console errors, layout shift, interaction latency, and image loading everywhere; supported browsers on the web; supported OS versions, runtime warnings, and dropped frames on native;
 - agreement with DESIGN.md, neighboring features, and the user's scope.
 
-Follow the quality guidance supplied by `impeccable context` and hooks, then run any other relevant QA commands. Context requests a manual scan only when no automatic detector is active; never add another detector pass. Fix real defects and document only narrow intentional exceptions. A clean scan does not replace visual judgment.
+Scan the result against [craft-floor.md](craft-floor.md) yourself, then run any other relevant QA commands. Fix real defects and document only narrow intentional exceptions. A clean scan does not replace visual judgment.
 
 Finish with a source diff: remove accidental churn, orphaned code, redundant values, and temporary artifacts. Ship only when the feature is functionally complete and consistently finished across the path.
 
-When this pass clears every Priority Issue it took from a snapshot, close that snapshot:
-
-```bash
-.veto/skills/impeccable/scripts/impeccable critique-storage close "<resolved target>" "<snapshot_file returned by latest>"
-```
-
-This closes only the snapshot this pass actually processed; if a newer critique landed meanwhile, its backlog stays live. Do not close when no snapshot was read, when `snapshot_file` was not retained, or when Priority Issues remain.
