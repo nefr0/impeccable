@@ -34,8 +34,8 @@ fn cmd_launcher_forwards_engine_exit_code() {
     let forward = "exit /b %errorlevel%";
     assert_eq!(
         cmd.matches(forward).count(),
-        2,
-        "PATH candidate and :run must both forward the engine exit code"
+        3,
+        "both PATH candidates and :run must forward the engine exit code"
     );
 }
 
@@ -56,28 +56,14 @@ fn cmd_launcher_has_no_multiline_parenthesized_blocks() {
 }
 
 #[test]
-fn launchers_fail_closed_on_missing_checksum() {
-    // Triage C1: a freshly downloaded binary runs only after its hash matches
-    // the digest committed in engine-checksums.txt (#813); nothing published
-    // beside the binary is trusted. No recorded digest, or a machine with no
-    // sha256 tool, refuses the download instead of running an unverified
-    // binary; a mismatch stays fatal.
-    let sh = launcher_file("impeccable");
-    let cmd = launcher_file("impeccable.cmd");
-    assert!(sh.contains("refusing the unverified download"));
-    assert!(sh.contains(r#"manifest="$dir/engine-checksums.txt""#));
-    assert!(sh.contains(r#"if [ -z "$actual" ]; then"#));
-    assert!(cmd.contains("refusing the unverified download"));
-    assert!(cmd.contains(r#"set "manifest=%~dp0engine-checksums.txt""#));
-    assert!(cmd.contains("goto verify_refuse"));
-    for text in [&sh, &cmd] {
-        // The digest is resolved before any download, and the sidecar is gone.
-        assert!(text.contains("no checksum for engine"));
-        assert!(!text.contains(".sha256"));
-        // Cached binaries are hashed once; the stamp records it.
-        assert!(text.contains(".verified"));
-        assert!(text.contains("cannot verify the cached engine"));
-        assert!(text.contains("checksum mismatch downloading"));
+fn launchers_never_download_an_engine() {
+    // Fork: the launchers run a local engine binary only. No download path,
+    // checksum manifest or network tool may come back.
+    for name in ["impeccable", "impeccable.cmd"] {
+        let text = launcher_file(name).to_lowercase();
+        for banned in ["curl ", "wget ", "invoke-webrequest", "certutil", "engine-checksums", "http://", "https://"] {
+            assert!(!text.contains(banned), "{name} contains {banned}");
+        }
     }
 }
 
