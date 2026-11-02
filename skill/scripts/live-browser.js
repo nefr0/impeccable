@@ -8703,75 +8703,16 @@
     return msLoadPromise;
   }
 
-  // Collect @font-face rules from every stylesheet on the page. Cross-origin
-  // sheets (Google Fonts, Typekit, etc.) throw SecurityError on .cssRules
-  // access, so modern-screenshot can't embed them on its own - the resulting
-  // SVG falls back to system fonts and text re-wraps + renders with different
-  // weight. We fetch the raw CSS text (CORS-permitted for these providers),
-  // extract @font-face blocks, inline the referenced font files as base64
-  // data URIs (SVGs rasterized via canvas can't fetch external resources,
-  // so URLs inside the SVG silently fail without this), and pass the result
-  // to modern-screenshot as font.cssText.
-  const FONT_EXT_RE = /\.(woff2?|ttf|otf|eot)(\?.*)?$/i;
-  const FONT_MIME = {
-    woff2: 'font/woff2', woff: 'font/woff', ttf: 'font/ttf', otf: 'font/otf', eot: 'application/vnd.ms-fontobject',
-  };
-  function bufferToBase64(buf) {
-    const bytes = new Uint8Array(buf);
-    let binary = '';
-    const CHUNK = 0x8000;
-    for (let i = 0; i < bytes.length; i += CHUNK) {
-      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
-    }
-    return btoa(binary);
-  }
-  async function inlineFontUrls(cssText) {
-    const urlRe = /url\((['"]?)(https?:\/\/[^'")\s]+)\1\)/g;
-    const urls = new Set();
-    let m;
-    while ((m = urlRe.exec(cssText))) {
-      if (FONT_EXT_RE.test(m[2])) urls.add(m[2]);
-    }
-    const map = new Map();
-    await Promise.all([...urls].map(async (url) => {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) return;
-        const buf = await res.arrayBuffer();
-        const ext = url.toLowerCase().match(FONT_EXT_RE)?.[1] || 'woff2';
-        const mime = FONT_MIME[ext] || 'application/octet-stream';
-        map.set(url, 'data:' + mime + ';base64,' + bufferToBase64(buf));
-      } catch { /* skip; fall through to URL */ }
-    }));
-    return cssText.replace(urlRe, (orig, q, url) => {
-      const data = map.get(url);
-      return data ? 'url(' + q + data + q + ')' : orig;
-    });
-  }
-  async function collectFontCssText() {
-    const chunks = [];
-    const fontFaceRe = /@font-face\s*\{[^}]*\}/g;
-    for (const sheet of document.styleSheets) {
-      try {
-        const rules = sheet.cssRules;
-        for (const rule of rules) {
-          if (rule.constructor.name === 'CSSFontFaceRule' || rule.cssText?.startsWith('@font-face')) {
-            chunks.push(rule.cssText);
-          }
-        }
-      } catch {
-        if (!sheet.href) continue;
-        try {
-          const res = await fetch(sheet.href);
-          if (!res.ok) continue;
-          const text = await res.text();
-          let m2;
-          while ((m2 = fontFaceRe.exec(text))) chunks.push(m2[0]);
-        } catch { /* ignore; capture is best-effort */ }
-      }
-    }
-    if (chunks.length === 0) return '';
-    return inlineFontUrls(chunks.join('\n'));
+  // No external fetches during capture: web-font embedding is switched off
+  // (font: false), and image inlining only goes to this page's own origin.
+  // Cross-origin images get a 1x1 transparent placeholder instead of a request.
+  const CAPTURE_PLACEHOLDER_IMAGE = 'data:image/png;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+  function captureImageFetch(url) {
+    try {
+      const parsed = new URL(url, location.href);
+      if (parsed.protocol === 'data:' || parsed.protocol === 'blob:' || parsed.origin === location.origin) return null;
+    } catch { /* unparseable: treat as foreign */ }
+    return CAPTURE_PLACEHOLDER_IMAGE;
   }
 
   // True if `s` is a computed color string that renders as nothing
@@ -8936,10 +8877,10 @@
     }
     try {
       const ms = await loadModernScreenshot();
-      const fontCssText = await collectFontCssText();
       const opts = {
         scale: Math.min(window.devicePixelRatio || 1, 2),
-        font: fontCssText ? { cssText: fontCssText } : undefined,
+        font: false,
+        fetchFn: captureImageFetch,
         filter: (node) => node !== topLayerHost,
       };
       if (shouldUseAncestorCropShaderProxy(el)) {

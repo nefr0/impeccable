@@ -9,6 +9,14 @@ const PENDING_DOCK_POSITION_SOURCE = SOURCE.match(/function positionPendingDock\
 const CAPTURE_AND_EMIT_SOURCE = SOURCE.match(/async function captureAndEmit\([\s\S]*?\n  \}/)?.[0] || '';
 
 describe('live-browser source contracts', () => {
+  it('captures without font embedding or cross-origin fetches', () => {
+    assert.doesNotMatch(SOURCE, /inlineFontUrls|FONT_EXT_RE|fetch\(sheet/);
+    assert.match(SOURCE, /font: false,\s*fetchFn: captureImageFetch/);
+    const body = SOURCE.match(/function captureImageFetch\(url\) \{[\s\S]*?\n  \}/)?.[0];
+    assert.ok(body);
+    assert.match(body, /parsed\.origin === location\.origin\) return null/);
+  });
+
   it('does not checkpoint a generation before captureAndEmit creates its session', () => {
     for (const name of ['handleGo', 'handleInsertCreate']) {
       const body = SOURCE.match(new RegExp(`function ${name}\\(\\) \\{[\\s\\S]*?\\n  \\}`))?.[0];

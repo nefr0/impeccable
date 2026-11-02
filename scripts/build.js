@@ -35,7 +35,7 @@ import {
 import { stageOpenAIPlugin } from './lib/openai-plugin.js';
 import { stageCursorPlugin } from './lib/cursor-plugin.js';
 import { stageVSCodeExtension } from './lib/vscode-extension.js';
-import { ENGINE_TARGETS, binaryName, main as fetchEngineMain, readEngineVersion } from './fetch-engine.mjs';
+const readEngineVersion = (root) => fs.readFileSync(path.join(root, 'ENGINE_VERSION'), 'utf-8').trim();
 // Sub-page generation is now handled by Astro content collections.
 
 /**
@@ -584,44 +584,6 @@ function syncRootPluginPayloads(distDir, rootDir) {
   return synced;
 }
 
-/**
- * Every skill copy in dist gets the engine binaries the launcher looks for
- * (`scripts/bin/<os>-<arch>/impeccable[.exe]`), so the release zips are
- * self-contained for installs without egress. Opt-in only
- * (IMPECCABLE_BUNDLE_ENGINE=1 on a release build), and only after the root
- * harness dirs and ./plugin have been synced from dist: those are
- * git-delivered and must stay launcher-only (the binaries are gitignored and
- * the launcher downloads them on first run).
- *
- * Source: skill/scripts/bin/, filled by scripts/fetch-engine.mjs --all. A
- * target that could not be fetched is reported and left out; the launcher
- * covers it at run time.
- */
-async function stageEngineBinaries(rootDir, distDir) {
-  await fetchEngineMain(['--all', '--lenient']);
-  const binRoot = path.join(rootDir, 'skill', 'scripts', 'bin');
-  const present = ENGINE_TARGETS.filter(t => fs.existsSync(path.join(binRoot, t, binaryName(t))));
-  const missing = ENGINE_TARGETS.filter(t => !present.includes(t));
-  if (present.length === 0) {
-    console.warn(`⚠️  No engine binaries for v${readEngineVersion(rootDir)}; zips ship launcher-only (the launcher downloads on first run).`);
-    return;
-  }
-  let copies = 0;
-  for (const { provider, configDir } of Object.values(PROVIDERS)) {
-    const scriptsDir = path.join(distDir, provider, configDir, 'skills', 'impeccable', 'scripts');
-    if (!fs.existsSync(scriptsDir)) continue;
-    for (const target of present) {
-      const src = path.join(binRoot, target, binaryName(target));
-      const dest = path.join(scriptsDir, 'bin', target, binaryName(target));
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.copyFileSync(src, dest);
-      fs.chmodSync(dest, 0o755);
-      copies++;
-    }
-  }
-  console.log(`✓ Staged engine v${readEngineVersion(rootDir)} binaries into dist (${present.join(', ')}; ${copies} copies)${missing.length ? `; missing: ${missing.join(', ')}` : ''}`);
-}
-
 function syncEngineVersionFile(rootDir) {
   const version = readEngineVersion(rootDir);
   if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
@@ -951,18 +913,6 @@ async function build() {
   // Declarative Marketplace skill bundle: no editor runtime or project hooks.
   // Staged before optional engine bundling to keep the VSIX launcher-only.
   stageVSCodeExtension(ROOT_DIR, DIST_DIR);
-
-  // Release zips ship launcher-only by default: the launcher downloads the
-  // pinned engine on first run. IMPECCABLE_BUNDLE_ENGINE=1 opts in to staging
-  // every fetched target into every dist skill copy for offline installs.
-  // That was the default once and put universal.zip at ~340 MB (five targets
-  // times every provider copy), past the 25 MB Cloudflare Pages file cap that
-  // `impeccable install` downloads through. Staging runs after the root
-  // harness dirs, ./plugin, and the OpenAI plugin were staged from dist, so
-  // git-delivered trees stay launcher-only either way.
-  if (BUILD_OPTIONS.syncRootOutputs && process.env.IMPECCABLE_BUNDLE_ENGINE === '1') {
-    await stageEngineBinaries(ROOT_DIR, DIST_DIR);
-  }
 
   // Assemble universal directory
   assembleUniversal(DIST_DIR);
