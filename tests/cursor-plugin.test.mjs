@@ -3,15 +3,17 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { stageCursorPlugin, rewriteCursorPluginMarkdown } from '../scripts/lib/cursor-plugin.js';
-import { buildCursorHooksManifest } from '../scripts/lib/transformers/hooks.js';
 import { collectPluginVersions } from '../scripts/lib/validate-plugin-versions.js';
 import { readSourceFiles } from '../scripts/lib/utils.js';
 import { createTransformer, PROVIDERS } from '../scripts/lib/transformers/index.js';
 
-const scripts = '.cursor/skills/impeccable/scripts';
-const sample = `---\nname: impeccable\ndescription: Design\n---\nRun \`${scripts}/impeccable context\`, and \`${scripts}\` is the fallback only when the runtime reports no base directory. Windows: \`${scripts}/impeccable.cmd context\`.\n`;
+const sample = `---
+name: impeccable
+description: Design
+---
+Read PRODUCT.md and DESIGN.md, then apply the guidance.   
+`;
 
 describe('Cursor native plugin', () => {
   let root;
@@ -28,46 +30,30 @@ describe('Cursor native plugin', () => {
     write('LICENSE', 'license');
     write('dist/cursor/.cursor/skills/impeccable/SKILL.md', sample);
     write('dist/cursor/.cursor/skills/impeccable/reference/polish.md', sample);
-    write('dist/cursor/.cursor/skills/impeccable/scripts/impeccable', '#!/bin/sh\nprintf "%s\\n" "$PWD" "$1"\ncat\nexit 2\n');
-    fs.chmodSync(path.join(root, 'dist/cursor/.cursor/skills/impeccable/scripts/impeccable'), 0o755);
     write('dist/cursor/.cursor/agents/impeccable-asset-producer.md', sample);
   });
   afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
-  it('stages only the Cursor payload and preserves launcher permissions', () => {
+  it('stages only the Cursor payload, with no hooks and no scripts', () => {
     const output = stageCursorPlugin(root, path.join(root, 'dist'));
     const manifest = JSON.parse(fs.readFileSync(path.join(output, '.cursor-plugin/plugin.json')));
     assert.equal(manifest.version, '4.2.2');
     assert.equal(manifest.skills, './skills/');
     assert.equal(manifest.agents, './agents/');
-    for (const rel of [manifest.logo, manifest.hooks, 'README.md', 'LICENSE']) assert.ok(fs.existsSync(path.join(output, rel)));
+    assert.equal('hooks' in manifest, false);
+    for (const rel of [manifest.logo, 'README.md', 'LICENSE']) assert.ok(fs.existsSync(path.join(output, rel)));
+    assert.equal(fs.existsSync(path.join(output, 'hooks')), false);
+    assert.equal(fs.existsSync(path.join(output, 'skills/impeccable/scripts')), false);
     for (const rel of ['skills/impeccable/SKILL.md', 'skills/impeccable/reference/polish.md', 'agents/impeccable-asset-producer.md']) {
       const text = fs.readFileSync(path.join(output, rel), 'utf8');
-      assert.doesNotMatch(text, /\.cursor\/skills|fallback only/);
-      assert.match(text, /"<skill-base-dir>\/scripts\/impeccable" context/);
-      assert.match(text, /& "<skill-base-dir>\/scripts\/impeccable\.cmd" context/);
-      assert.doesNotMatch(text, /& "<skill-base-dir>\/scripts\/impeccable"/);
+      assert.match(text, /^---\nname: /);
+      assert.doesNotMatch(text, /[\t ]+$/m);
+      assert.ok(text.endsWith('apply the guidance.\n'));
     }
-    assert.match(fs.readFileSync(path.join(output, 'agents/impeccable-asset-producer.md'), 'utf8'), /supplied in the handoff/);
-    assert.equal(fs.statSync(path.join(output, 'skills/impeccable/scripts/impeccable')).mode & 0o111, 0o111);
     assert.equal(fs.readFileSync(path.join(root, 'dist/cursor/.cursor/skills/impeccable/SKILL.md'), 'utf8'), sample);
     write('dist/cursor-plugin/stale.txt', 'stale');
     stageCursorPlugin(root, path.join(root, 'dist'));
     assert.equal(fs.existsSync(path.join(output, 'stale.txt')), false);
-  });
-
-  it('runs the plugin hook from a relocated path with spaces, preserving cwd, stdin, and exit status', { skip: process.platform === 'win32' }, () => {
-    const output = stageCursorPlugin(root, path.join(root, 'dist'));
-    const relocated = path.join(root, 'installed plugin');
-    fs.renameSync(output, relocated);
-    const hooks = JSON.parse(fs.readFileSync(path.join(relocated, 'hooks/hooks.json')));
-    assert.deepEqual(Object.keys(hooks.hooks), ['postToolUse']);
-    assert.equal(hooks.hooks.postToolUse[0].matcher, '^Write$');
-    const command = hooks.hooks.postToolUse[0].command.replaceAll('${CURSOR_PLUGIN_ROOT}', relocated);
-    const result = spawnSync('sh', ['-c', command], { cwd: root, input: '{"tool_name":"Edit"}\n', encoding: 'utf8' });
-    assert.equal(result.status, 2, result.stderr);
-    assert.equal(result.stdout, `${fs.realpathSync(root)}\nhook\n{"tool_name":"Edit"}\n`);
-    assert.match(buildCursorHooksManifest().hooks.postToolUse[0].command, /\.cursor\/skills\/impeccable/);
   });
 
   it('does not add path prose to agents that do not use scripts', () => {
@@ -82,39 +68,33 @@ describe('Cursor native plugin', () => {
     assert.equal(collectPluginVersions(root).mismatches.length, 4);
   });
 
-  it('keeps the Git marketplace source and generated-output sync connected', () => {
+  it('keeps the Git marketplace source connected to the staged plugin', () => {
     const repository = path.resolve(import.meta.dirname, '..');
     const marketplace = JSON.parse(fs.readFileSync(path.join(repository, '.cursor-plugin/marketplace.json')));
     assert.equal(marketplace.plugins[0].source, './cursor-plugin');
-    const workflow = fs.readFileSync(path.join(repository, '.github/workflows/sync-generated-output.yml'), 'utf8');
-    assert.match(workflow, /\n    cursor-plugin\n/);
-    assert.match(workflow, /docs\/CURSOR-PLUGIN\.md/);
-    const pushPaths = workflow.split('    paths:\n')[1]?.split('  workflow_dispatch:')[0];
-    assert.match(pushPaths ?? '', /^      - "LICENSE"$/m);
   });
 
-  it('packages the real provider skill and all agents without unresolved launcher paths', () => {
+  it('packages the real provider skill and all agents as text only', () => {
     const repository = path.resolve(import.meta.dirname, '..');
     const version = JSON.parse(fs.readFileSync(path.join(repository, '.claude-plugin/plugin.json'))).version;
     const { skills } = readSourceFiles(repository);
     const dist = path.join(root, 'real-provider');
     createTransformer(PROVIDERS.cursor)(skills, dist, { skillsVersion: version });
     const output = stageCursorPlugin(repository, dist);
-    assert.equal(fs.readdirSync(path.join(output, 'agents')).length, 4);
+    assert.equal(fs.readdirSync(path.join(output, 'agents')).length, skills[0].agents.length);
     let links = 0;
     for (const rel of fs.readdirSync(output, { recursive: true }).filter(file => file.endsWith('.md'))) {
       const filename = path.join(output, rel);
       const text = fs.readFileSync(filename, 'utf8');
-      assert.doesNotMatch(text, /\.cursor\/skills\/impeccable\/scripts|\{\{scripts_path\}\}|fallback only when/);
+      assert.doesNotMatch(text, /\{\{scripts_path\}\}|<skill-base-dir>/);
       for (const match of text.matchAll(/\]\(([^)\s]+)\)/g)) {
-        if (!/^(reference|scripts)\//.test(match[1])) continue;
+        if (!/^reference\//.test(match[1])) continue;
         assert.ok(fs.existsSync(path.resolve(path.dirname(filename), match[1].split('#')[0])), `${rel}: ${match[1]}`);
         links++;
       }
     }
-    assert.ok(links > 20);
-    assert.equal(fs.existsSync(path.join(output, 'skills/impeccable/scripts/bin')), false);
-    const entrypoint = fs.readFileSync(path.join(output, 'skills/impeccable/SKILL.md'), 'utf8');
-    assert.match(entrypoint, /Run `"<skill-base-dir>\/scripts\/impeccable" context` once per session/);
+    assert.ok(links > 0);
+    assert.equal(fs.existsSync(path.join(output, 'skills/impeccable/scripts')), false);
+    assert.equal(fs.existsSync(path.join(output, 'hooks')), false);
   });
 });

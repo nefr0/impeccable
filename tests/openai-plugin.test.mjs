@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { stageOpenAIPlugin } from '../scripts/lib/openai-plugin.js';
-import { buildCodexPluginHooksManifest } from '../scripts/lib/transformers/hooks.js';
 
 function write(root, rel, contents) {
   const abs = path.join(root, rel);
@@ -36,7 +35,7 @@ describe('OpenAI plugin staging', () => {
     write(
       root,
       'dist/codex/.codex/skills/impeccable/SKILL.md',
-      '---\nname: impeccable\n---\n\nUse $impeccable. Run .codex/skills/impeccable/scripts/context.mjs.\n',
+      '---\nname: impeccable\n---\n\nUse $impeccable. Read .codex/skills/impeccable/reference/init.md.\n',
     );
     write(
       root,
@@ -53,7 +52,7 @@ describe('OpenAI plugin staging', () => {
     write(
       root,
       'dist/claude-code/.claude/skills/impeccable/SKILL.md',
-      '---\nname: impeccable\n---\n\nUse /impeccable. Run .claude/skills/impeccable/scripts/context.mjs.\n',
+      '---\nname: impeccable\n---\n\nUse /impeccable. Read .claude/skills/impeccable/reference/init.md.\n',
     );
   });
 
@@ -61,11 +60,10 @@ describe('OpenAI plugin staging', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  it('packages the Codex skill, agents, manifest, icon, and compatible hook', () => {
+  it('packages the Codex skill, agents, manifest, and icon with no hooks', () => {
     const pluginRoot = stageOpenAIPlugin(root, dist);
     const skill = fs.readFileSync(path.join(pluginRoot, 'skills/impeccable/SKILL.md'), 'utf8');
     const manifest = JSON.parse(fs.readFileSync(path.join(pluginRoot, '.codex-plugin/plugin.json'), 'utf8'));
-    const hooks = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'hooks/hooks.json'), 'utf8'));
 
     assert.match(skill, /\$impeccable/);
     assert.match(skill, /\.codex\/skills\/impeccable/);
@@ -87,8 +85,7 @@ describe('OpenAI plugin staging', () => {
     assert.equal('email' in manifest.author, false);
     assert.equal(manifest.interface.shortDescription, 'Design and refine interfaces');
     assert.equal(manifest.interface.category, 'Creativity');
-    assert.deepEqual(hooks, buildCodexPluginHooksManifest());
-    assert.match(hooks.hooks.PostToolUse[0].hooks[0].command, /\$\{PLUGIN_ROOT\}/);
-    assert.doesNotMatch(hooks.hooks.PostToolUse[0].hooks[0].command, /CLAUDE_PLUGIN_ROOT/);
+    assert.equal(fs.existsSync(path.join(pluginRoot, 'hooks')), false);
+    assert.equal(fs.existsSync(path.join(pluginRoot, 'skills/impeccable/scripts')), false);
   });
 });
