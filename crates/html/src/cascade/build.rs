@@ -533,13 +533,6 @@ fn mark_side_accent_radius_blind_spots(
     }
 }
 
-static FONT_STYLESHEET_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?i)^(?:https?:)?//(?:fonts\.googleapis\.com|fonts\.bunny\.net|use\.typekit\.net|p\.typekit\.net|api\.fontshare\.com|fonts\.cdnfonts\.com|rsms\.me)/",
-    )
-    .expect("FONT_STYLESHEET_RE")
-});
-
 /// Whether the page links a stylesheet the static engine did not read: a
 /// remote sheet (other than a font service, which carries no box rules) or a
 /// local one it could not open. [`collect_static_css_text`] skips both.
@@ -552,7 +545,7 @@ pub fn has_unread_stylesheet(doc: &StaticDocument, file_dir: &Path) -> bool {
             return false;
         }
         if REMOTE_HREF_RE.is_match(href) {
-            return !FONT_STYLESHEET_RE.is_match(href);
+            return true;
         }
         !std::fs::metadata(resolve_linked_css_path(&dir, href))
             .map(|m| m.is_file())

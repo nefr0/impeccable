@@ -1058,15 +1058,12 @@ fn parse_ignore_rule_args(args: &[String]) -> Result<(String, bool), String> {
 
 /// JS: addIgnoreRule(cwd, args)
 fn add_ignore_rule(rt: &Runtime, cwd: &str, args: &[String]) -> Result<String, String> {
-    let (rule, all_values) = parse_ignore_rule_args(args)?;
+    let (rule, _all_values) = parse_ignore_rule_args(args)?;
     let cmd = &rt.impeccable_command;
     if rule.is_empty() {
         return Err(format!(
             "Pass a rule id, e.g. {cmd} hooks ignore-rule side-tab"
         ));
-    }
-    if rule == "overused-font" && !all_values {
-        return Err(format!("overused-font is value-specific by default. Use {cmd} hooks ignore-value overused-font <font> for a confirmed font, or {cmd} hooks ignore-rule overused-font --all-values only when the user asked to ignore overused fonts generally."));
     }
     let mut config = merge_detector_config(Some(&read_raw_detector_config(cwd, false)), None);
     let mut rules = string_array(config.get("ignoreRules")).unwrap_or_default();
@@ -1226,18 +1223,14 @@ fn add_ignore_value(rt: &Runtime, cwd: &str, args: &[String]) -> Result<String, 
     let cmd = &rt.impeccable_command;
     if parsed.rule.is_empty() || parsed.value.is_empty() {
         return Err(format!(
-            "Pass a rule id and value, e.g. {cmd} hooks ignore-value overused-font Inter"
+            "Pass a rule id and value, e.g. {cmd} hooks ignore-value design-system-color #ff0000"
         ));
     }
     if parsed.shared && parsed.local {
         return Err("Pass only one scope flag: --shared or --local".to_string());
     }
     if parsed.value == "*" && parsed.files.is_empty() {
-        let project_wide = if parsed.rule == "overused-font" {
-            format!("{cmd} hooks ignore-rule {} --all-values", parsed.rule)
-        } else {
-            format!("{cmd} hooks ignore-rule {}", parsed.rule)
-        };
+        let project_wide = format!("{cmd} hooks ignore-rule {}", parsed.rule);
         return Err(format!("Wildcard value ignores must be scoped with --file <glob>, e.g. {cmd} hooks ignore-value design-system-font-size \"*\" --file \"src/widget.js\". To suppress the rule project-wide use {project_wide}."));
     }
     // JS: refuse inert exact entries — a value the extractor can never

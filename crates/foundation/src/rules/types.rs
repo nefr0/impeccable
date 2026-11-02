@@ -365,25 +365,6 @@ pub struct IconTileOpts {
     pub heading_is_card_title: bool,
 }
 
-// ─── resolveSerif / checkItalicSerif ────────────────────────────────────────
-
-/// JS `resolveSerif` result `{ primary, isSerif }`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SerifResolution {
-    pub primary: Option<String>,
-    pub is_serif: bool,
-}
-
-/// JS `checkItalicSerif` opts.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct ItalicSerifOpts {
-    pub tag: String,
-    pub font_style: Option<String>,
-    pub font_family: Option<String>,
-    pub font_size: f64,
-    pub heading_text: Option<String>,
-}
-
 // ─── checkHeroEyebrow ───────────────────────────────────────────────────────
 
 /// JS `checkHeroEyebrow` opts.

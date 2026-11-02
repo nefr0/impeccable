@@ -20,8 +20,8 @@ use impeccable_core::js;
 use impeccable_core::js_ext_b::slice_utf16_prefix;
 use impeccable_detect::design_system::{
     check_source_design_system, css_color_label, extract_radius_tokens, is_allowed_color_raw,
-    is_allowed_font, is_allowed_radius_raw, is_transparent_css, make_design_finding,
-    merge_design_system_findings, primary_font, DesignSystem, STATIC_DESIGN_SKIP_TAGS,
+    is_allowed_radius_raw, is_transparent_css, make_design_finding,
+    merge_design_system_findings, DesignSystem, STATIC_DESIGN_SKIP_TAGS,
 };
 use impeccable_detect::detect_text::run_text_content_analyzers;
 use impeccable_detect::engines::{EngineError, HtmlEngine, ScanOptions};
@@ -212,7 +212,6 @@ pub fn collect_static_design_system_findings(
         return vec![];
     }
     let mut findings = Vec::new();
-    let mut seen_fonts: Vec<String> = Vec::new();
     let mut seen_colors: Vec<String> = Vec::new();
     let mut seen_radii: Vec<String> = Vec::new();
 
@@ -222,24 +221,6 @@ pub fn collect_static_design_system_findings(
         }
         let tag = el.tag_lower();
         let style = el.style();
-
-        if ds.has_fonts && has_direct_text(&el) {
-            let font = primary_font(sv(style, "fontFamily"));
-            if !font.is_empty() && !seen_fonts.contains(&font) && !is_allowed_font(&font, Some(ds))
-            {
-                seen_fonts.push(font.clone());
-                findings.push(make_design_finding(
-                    "design-system-font",
-                    file_path,
-                    &format!(
-                        "{tag}{} uses {font}; not declared in DESIGN.md typography",
-                        sample_text(&el)
-                    ),
-                    0.0,
-                    &font,
-                ));
-            }
-        }
 
         if ds.has_colors {
             let mut color_checks: Vec<(String, &str)> = Vec::new();

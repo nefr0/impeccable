@@ -1,10 +1,6 @@
 //! Round 8 text and CSS-text forms against an installed browser. Skips
 //! cleanly when there is none.
 //!
-//! - `overused-font-share-{pass,flag}.html`: a face that sets under one
-//!   character in twenty of the visible text is not reported as primary.
-//! - `overused-font-never-loaded.html`: a face the browser never loaded is
-//!   not reported as primary (taste call r12-t2).
 //! - `side-tab-stylesheet-forms.html`: a pseudo-element stripe its host
 //!   already reports is not reported again from the stylesheet, and a stripe
 //!   drawn by an image alone is not reported.
@@ -85,34 +81,6 @@ fn findings(engine: &BrowserEngine, port: u16, fixture: &str, rule: &str) -> Vec
             (f.snippet, selector)
         })
         .collect()
-}
-
-#[test]
-fn overused_font_stands_down_for_a_face_that_sets_next_to_no_text() {
-    let Some(engine) = engine() else { return };
-    let port = serve();
-
-    // Thirty two-digit numbers in Inter over eight Georgia paragraphs, and a
-    // closed drawer of Inter copy: about 3% of the visible characters.
-    let pass = findings(&engine, port, "overused-font-share-pass.html", "overused-font");
-    assert_eq!(pass, vec![], "Inter sets next to none of the visible text");
-
-    // Thirty word labels in Inter: about 11%, and the element share stands.
-    let flag = findings(&engine, port, "overused-font-share-flag.html", "overused-font");
-    assert_eq!(flag.len(), 1, "{flag:?}");
-    assert_eq!(flag[0].0, "Primary font: inter (79% of text)", "{flag:?}");
-}
-
-/// Taste call r12-t2: the same thirty labels on a page whose only Recoleta
-/// `@font-face` fails to load, and which no test host installs, set their
-/// text in a fallback, so Recoleta is not reported as the page's face. `overused-font-share-flag.html`,
-/// which loads its Inter, is the should-flag twin above.
-#[test]
-fn overused_font_stands_down_for_a_face_the_browser_never_loaded() {
-    let Some(engine) = engine() else { return };
-    let port = serve();
-    let pass = findings(&engine, port, "overused-font-never-loaded.html", "overused-font");
-    assert_eq!(pass, vec![], "Recoleta never loaded");
 }
 
 fn snippets(engine: &BrowserEngine, port: u16, fixture: &str, rule: &str) -> Vec<String> {

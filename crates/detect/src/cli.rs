@@ -90,8 +90,8 @@ Project config:
 
 Inline ignores:
   In-file comments waive a finding where it lives and travel with the file:
-    <!-- impeccable-disable overused-font -- exported brand doc -->
-    .brand { font-family: Inter } /* impeccable-disable-line overused-font */
+    <!-- impeccable-disable design-system-color -- exported brand doc -->
+    .brand { color: #ff0000 } /* impeccable-disable-line design-system-color */
     // impeccable-disable-next-line bounce-easing: intentional bounce
   impeccable-disable applies to the whole file; -line / -next-line are scoped.
   List one or more rule ids (comma-separated), or omit them / use * for all.

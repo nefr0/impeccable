@@ -921,9 +921,7 @@ fn finding_matches_scoped_ignore_file(finding: &Finding, globs: &[String]) -> bo
 }
 
 const DIRECT_VALUE_RULES: &[&str] = &[
-    "overused-font",
     "bounce-easing",
-    "design-system-font",
     "design-system-color",
     "design-system-radius",
     "design-system-font-size",
@@ -971,20 +969,6 @@ fn extra_str<'a>(finding: &'a Finding, key: &str) -> Option<&'a str> {
     }
 }
 
-re!(
-    PRIMARY_FONT_RE,
-    format!("(?i:Primary font):{WS}*([^()\n;]+)")
-);
-re!(
-    GOOGLE_LABEL_RE,
-    format!("(?i:Google Fonts):{WS}*([^()\n;]+)")
-);
-re!(
-    FAMILY_RE,
-    format!(r#"(?i:font-family){WS}*:{WS}*["']?([^'",;\n]+)"#)
-);
-re!(GOOGLE_PARAM_RE, "[?&](?i:family)=([^&:;\n]+)");
-
 fn extract_finding_ignore_value_raw(finding: &Finding, rule: &str) -> String {
     let direct_src = extra_str(finding, "ignoreValue")
         .filter(|s| !s.is_empty())
@@ -1010,18 +994,6 @@ fn extract_finding_ignore_value_raw(finding: &Finding, rule: &str) -> String {
                 return motion;
             }
             continue;
-        }
-        if let Some(m) = PRIMARY_FONT_RE.captures(text) {
-            return clean_ignore_value_display(&m[1]);
-        }
-        if let Some(m) = GOOGLE_LABEL_RE.captures(text) {
-            return clean_ignore_value_display(&m[1]);
-        }
-        if let Some(m) = FAMILY_RE.captures(text) {
-            return clean_ignore_value_display(&m[1]);
-        }
-        if let Some(m) = GOOGLE_PARAM_RE.captures(text) {
-            return clean_ignore_value_display(&decode_uri_component(&m[1]));
         }
     }
     String::new()

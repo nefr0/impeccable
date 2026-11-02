@@ -309,7 +309,7 @@ mod tests {
             ".impeccable/config.json",
             &detector_config(json!({
                 "ignoreRules": ["ai-color-palette"],
-                "ignoreValues": [{ "rule": "overused-font", "value": "space grotesk" }]
+                "ignoreValues": [{ "rule": "design-system-color", "value": "tomato" }]
             })),
         );
         repo.write("site/.impeccable/live/config.json", &live_config(json!(["prototype/index.html"])));
@@ -317,7 +317,7 @@ mod tests {
 
         let out = collect(&app, Some(&repo.path()));
         assert_eq!(out["ignoreRules"], json!(["ai-color-palette"]));
-        assert_eq!(out["ignoreValues"], json!([{ "rule": "overused-font", "value": "space grotesk" }]));
+        assert_eq!(out["ignoreValues"], json!([{ "rule": "design-system-color", "value": "tomato" }]));
         // Identities serialize repo-relative so waivers spelled from either
         // root match through the resolver's suffix expansion.
         assert_eq!(out["roots"], json!(["site/prototype/"]));
@@ -334,14 +334,14 @@ mod tests {
             ".impeccable/config.json",
             &detector_config(json!({
                 "ignoreRules": ["ai-color-palette"],
-                "ignoreValues": [{ "rule": "overused-font", "value": "space grotesk" }]
+                "ignoreValues": [{ "rule": "design-system-color", "value": "tomato" }]
             })),
         );
         repo.write(
             "site/.impeccable/config.json",
             &detector_config(json!({
                 "ignoreRules": ["gradient-text", "ai-color-palette"],
-                "ignoreValues": [{ "rule": "overused-font", "value": "space grotesk" }]
+                "ignoreValues": [{ "rule": "design-system-color", "value": "tomato" }]
             })),
         );
         repo.write("site/.impeccable/live/config.json", &live_config(json!(["prototype/index.html"])));
@@ -349,7 +349,7 @@ mod tests {
 
         let out = collect(&app, Some(&repo.path()));
         assert_eq!(strs(&out, "ignoreRules"), vec!["ai-color-palette", "gradient-text"]);
-        assert_eq!(out["ignoreValues"], json!([{ "rule": "overused-font", "value": "space grotesk" }]));
+        assert_eq!(out["ignoreValues"], json!([{ "rule": "design-system-color", "value": "tomato" }]));
     }
 
     #[test]

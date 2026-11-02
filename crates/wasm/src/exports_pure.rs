@@ -75,8 +75,6 @@ pure_exports! {
     pure_check_hover_contrast => ("rules.checks", "checkHoverContrast"),
     pure_is_card_like_from_props => ("rules.checks", "isCardLikeFromProps"),
     pure_check_icon_tile => ("rules.checks", "checkIconTile"),
-    pure_resolve_serif => ("rules.checks", "resolveSerif"),
-    pure_check_italic_serif => ("rules.checks", "checkItalicSerif"),
     pure_is_accent_color => ("rules.checks", "isAccentColor"),
     pure_resolve_hero_heading_size_px => ("rules.checks", "resolveHeroHeadingSizePx"),
     pure_check_hero_eyebrow => ("rules.checks", "checkHeroEyebrow"),

@@ -51,16 +51,6 @@ pub static ANTIPATTERNS: &[Antipattern] = &[
         skill_guideline: Some("colored accent stripe"),
     },
     Antipattern {
-        id: "overused-font",
-        category: "slop",
-        scopes: Some(&["type"]),
-        severity: None,
-        name: "Overused font",
-        description: "Inter, Roboto, Fraunces, Geist, Plus Jakarta Sans, and Space Grotesk are used on so many sites they no longer feel distinctive. Each new wave of AI-generated UIs converges on the same handful of faces. Choose a face that gives your interface personality.",
-        skill_section: Some("Typography"),
-        skill_guideline: Some("overused fonts like Inter"),
-    },
-    Antipattern {
         id: "flat-type-hierarchy",
         category: "slop",
         scopes: Some(&["type"]),
@@ -239,16 +229,6 @@ pub static ANTIPATTERNS: &[Antipattern] = &[
         description: "A small rounded-square icon container above a heading is the universal AI feature-card template — every generator outputs this exact shape. Try a side-by-side icon and heading, or let the icon sit in flow without its own container.",
         skill_section: Some("Typography"),
         skill_guideline: Some("large icons with rounded corners above every heading"),
-    },
-    Antipattern {
-        id: "italic-serif-display",
-        category: "slop",
-        scopes: Some(&["type"]),
-        severity: None,
-        name: "Italic serif display headline",
-        description: "Oversized italic serif (Fraunces, Recoleta, Playfair, Newsreader-italic) as the primary hero headline reads as taste in isolation but has become the universal AI-startup landing page hero. Set roman, or move to a non-serif display face. Editorial / magazine register may legitimately want this — judge by context.",
-        skill_section: Some("Typography"),
-        skill_guideline: Some("oversized italic serif as the hero headline"),
     },
     Antipattern {
         id: "hero-eyebrow-chip",
@@ -571,16 +551,6 @@ pub static ANTIPATTERNS: &[Antipattern] = &[
         skill_guideline: Some("overflow container clipping positioned children"),
     },
     Antipattern {
-        id: "design-system-font",
-        category: "quality",
-        scopes: Some(&["type"]),
-        severity: None,
-        name: "Font outside DESIGN.md",
-        description: "A font is used that is not declared in DESIGN.md typography. Use the documented type system or update DESIGN.md if this is an intentional brand addition.",
-        skill_section: Some("Typography"),
-        skill_guideline: Some("font family outside the project design system"),
-    },
-    Antipattern {
         id: "design-system-color",
         category: "quality",
         scopes: None,
@@ -675,7 +645,6 @@ pub const IMMEDIATE_TIER_RULES: &[&str] = &[
     "gradient-text",
     "dark-glow",
     // Design-system drift compounds if not corrected at edit time.
-    "design-system-font",
     "design-system-color",
     "design-system-radius",
     "design-system-font-size",
@@ -849,7 +818,7 @@ mod tests {
 
     #[test]
     fn registry_shape() {
-        assert_eq!(ANTIPATTERNS.len(), 62);
+        assert_eq!(ANTIPATTERNS.len(), 59);
         assert!(is_advisory_rule("hard-offset-shadow"));
         assert_eq!(get_antipattern("hard-offset-shadow").unwrap().category, "quality");
         assert!(!IMMEDIATE_TIER_RULES.contains(&"hard-offset-shadow"));
