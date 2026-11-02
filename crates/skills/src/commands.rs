@@ -6,7 +6,7 @@
 use impeccable_common::Io;
 use serde_json::Value;
 
-use crate::bundle::{self, download};
+use crate::bundle;
 use crate::engine_binary::install_engine_binaries;
 use crate::hook_manifest::{self, copy_provider_hooks, hook_installed_for_provider, hook_installed_for_provider_at_scope, HOOK_EXPLAINER};
 use crate::prompt::{CheckboxOption, Prompt, RadioOption};
@@ -90,13 +90,14 @@ fn hook_paths_line(sys: &Sys, dests: &[String]) -> String {
 
 /// JS: showHelp()
 fn show_help(io: &mut Io) -> R<()> {
-    let commands: Vec<Value> = match download(&format!("{API_BASE}/api/commands"))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
-    {
-        Some(Value::Array(a)) => a,
+    let metadata: Value = serde_json::from_str(include_str!("../../context/src/command-metadata.json")).unwrap_or(Value::Null);
+    let commands: Vec<(String, String)> = match &metadata {
+        Value::Object(map) => map
+            .iter()
+            .map(|(id, c)| (id.clone(), c.get("description").and_then(Value::as_str).unwrap_or("").to_string()))
+            .collect(),
         _ => {
-            err(io, "Could not fetch command list from impeccable.style. Check your network connection.");
+            err(io, "Embedded command metadata is unreadable.");
             return Err(Flow::Exit(1));
         }
     };
@@ -112,14 +113,7 @@ fn show_help(io: &mut Io) -> R<()> {
     out(io, &format!("  {} Description", pad("Command", 22)));
     out(io, &format!("  {} {}", "-".repeat(22), "-".repeat(52)));
 
-    let mut sorted: Vec<(String, String)> = commands
-        .iter()
-        .map(|c| {
-            let id = c.get("id").and_then(Value::as_str).unwrap_or("").to_string();
-            let desc = c.get("description").and_then(Value::as_str).unwrap_or("").to_string();
-            (id, desc)
-        })
-        .collect();
+    let mut sorted = commands.clone();
     sorted.sort_by(|a, b| locale_compare(&a.0, &b.0));
     for (id, description) in &sorted {
         let desc = if utf16_len(description) > 72 {
@@ -644,8 +638,7 @@ fn install(flags: &[String], io: &mut Io) -> R<()> {
                 match bundle::download_and_extract_bundle(&sys) {
                     Ok(dir) => bundle_dir = Some(dir),
                     Err(e) => {
-                        if e.is_fatal_over_existing_install()
-                            || !missing_hook_targets.is_empty() || !missing_selected_targets.is_empty() {
+                        if !missing_hook_targets.is_empty() || !missing_selected_targets.is_empty() {
                             return Err(e.into());
                         }
                         update_check_skipped = true;
@@ -739,11 +732,11 @@ fn install(flags: &[String], io: &mut Io) -> R<()> {
 
     let want_hooks = install_hooks && decide_hook_install(&sys, &mut prompt, io, &hook_root, &targets, yes)?;
 
-    out(io, "\nDownloading impeccable skills...");
+    out(io, "\nLoading impeccable skills...");
     let bundle_dir = match bundle::download_and_extract_bundle(&sys) {
         Ok(d) => d,
         Err(e) => {
-            err(io, &format!("Download failed: {e}"));
+            err(io, &format!("Bundle not available: {e}"));
             return Err(Flow::Exit(1));
         }
     };
@@ -868,7 +861,7 @@ fn update(flags: &[String], io: &mut Io) -> R<()> {
     let tmp_dir = match bundle::download_and_extract_bundle(&sys) {
         Ok(d) => d,
         Err(e) => {
-            err(io, &format!("Download failed: {e}"));
+            err(io, &format!("Bundle not available: {e}"));
             return Err(Flow::Exit(1));
         }
     };
@@ -1038,41 +1031,27 @@ mod offline_install_tests {
     }
 
     #[test]
-    fn offline_over_existing_skills_leaves_them_and_exits_zero() {
+    fn missing_bundle_over_existing_skills_leaves_them_and_exits_zero() {
         let fx = fixture("offline-existing");
         let Some(skill_md) = install_existing(&fx) else { return };
         let before = std::fs::read(&skill_md).unwrap();
 
-        test_seam::force(Err(BundleError::Download("Network Error: Dns Failed: resolve dns name 'impeccable.style:443'".into())));
+        test_seam::force(Err(BundleError::Missing));
         let (code, stdout, stderr) = run(&fx, &[]);
         assert_eq!(code, 0, "stdout:\n{stdout}\nstderr:\n{stderr}");
-        assert!(stdout.contains("Could not check for skill updates: Could not download skill bundle: Network Error"), "{stdout}");
+        assert!(stdout.contains("Could not check for skill updates: No local skill bundle found"), "{stdout}");
         assert!(stdout.contains("Existing skills were left unchanged."), "{stdout}");
         assert!(!stdout.contains("verify") && !stdout.contains("report it"), "{stdout}");
         assert_eq!(std::fs::read(&skill_md).unwrap(), before, "existing skill was modified");
     }
 
     #[test]
-    fn failed_verification_over_existing_skills_is_fatal() {
-        let fx = fixture("verify-existing");
-        let Some(skill_md) = install_existing(&fx) else { return };
-        let before = std::fs::read(&skill_md).unwrap();
-
-        test_seam::force(Err(BundleError::Verify("ZIP digest does not match the signed release".into())));
-        let (code, stdout, stderr) = run(&fx, &[]);
-        assert_eq!(code, 1, "stdout:\n{stdout}\nstderr:\n{stderr}");
-        assert!(stderr.contains("Install check failed: Could not verify skill bundle: ZIP digest"), "{stderr}");
-        assert!(!stdout.contains("Could not check for skill updates"), "{stdout}");
-        assert_eq!(std::fs::read(&skill_md).unwrap(), before, "existing skill was modified");
-    }
-
-    #[test]
-    fn offline_fresh_install_fails_as_a_download() {
+    fn missing_bundle_fresh_install_fails() {
         let fx = fixture("offline-fresh");
-        test_seam::force(Err(BundleError::Download("Network Error: Dns Failed".into())));
+        test_seam::force(Err(BundleError::Missing));
         let (code, stdout, stderr) = run(&fx, &[]);
         assert_eq!(code, 1, "stdout:\n{stdout}\nstderr:\n{stderr}");
-        assert!(stderr.contains("Download failed: Could not download skill bundle: Network Error"), "{stderr}");
+        assert!(stderr.contains("Bundle not available: No local skill bundle found"), "{stderr}");
         assert!(!stderr.contains("verify"), "{stderr}");
         assert!(!std::path::Path::new(&format!("{}/.claude/skills/impeccable", fx.project)).exists());
     }
