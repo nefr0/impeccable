@@ -121,7 +121,7 @@ fn render_challenger(concept: &Value, index: usize) -> String {
         .map(|a| a.iter().map(|r| fill(t::RENDER_CHALLENGER_RULE, &[("RULE", &value_str(r))])).collect())
         .unwrap_or_default();
     let (id, board, hero) = challenger_card(concept);
-    fill(
+    let mut rendered = fill(
         t::RENDER_CHALLENGER,
         &[
             ("INDEX_PLUS_ONE", &(index + 1).to_string()),
@@ -130,10 +130,12 @@ fn render_challenger(concept: &Value, index: usize) -> String {
             ("CONCEPT_SPARK", &vs(concept, "spark")),
             ("SYSTEM", &system.join("\n")),
             ("CONCEPT_WEBLEVERAGE", &vs(concept, "webLeverage")),
-            ("BOARD", &board),
-            ("HERO", &hero),
         ],
-    )
+    );
+    if !board.is_empty() || !hero.is_empty() {
+        rendered.push_str(&format!("\n     QUALITY BAR: board {board} · hero {hero}"));
+    }
+    rendered
 }
 
 /// A dealt challenger's catalog id and its two card images: the QUALITY BAR

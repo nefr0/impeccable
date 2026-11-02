@@ -62,7 +62,7 @@ pub const RESTATED_REGISTER: &str = "REGISTER (restated for truncated readers): 
 
 pub const MAIN: &str = "@@SCOPE_UPPER@@ CONCEPT SEED (key: @@KEY@@; mode: @@MODE_OR_UNSCOPED@@; source: @@DATA_SOURCE@@; approved pool: @@DATA_POOLREVISION@@; @@DATA_APPROVEDCOUNT@@/@@DATA_CATALOGCOUNT@@ human-approved; rerun with --scope @@SCOPE@@@@MODE_FLAG@@ --from @@KEY@@@@REROLL_FLAG@@@@REGISTER_FLAG@@ --candidate-count @@CANDIDATECOUNT@@ to reproduce this roll against this catalog revision)\n@@REROLLBLOCK@@@@ASSIGNEDBLOCK@@\n@@CHALLENGERSECTION@@@@AUTHORITYINSTRUCTION@@\n@@RICHNESSINSTRUCTION@@\n@@TELEMETRYBLOCK@@A user- or brief-pinned decision beats the roll, always.\n@@RESTATED@@\n";
 
-pub const RENDER_CHALLENGER: &str = "  @@INDEX_PLUS_ONE@@. @@CONCEPT_FORM@@\n     SOURCE ID: @@CONCEPT_ID@@\n     CREATIVE SPARK: @@CONCEPT_SPARK@@\n     SYSTEM GRAMMAR:\n@@SYSTEM@@\n     WEB LEVERAGE: @@CONCEPT_WEBLEVERAGE@@\n     QUALITY BAR: board @@BOARD@@ · hero @@HERO@@";
+pub const RENDER_CHALLENGER: &str = "  @@INDEX_PLUS_ONE@@. @@CONCEPT_FORM@@\n     SOURCE ID: @@CONCEPT_ID@@\n     CREATIVE SPARK: @@CONCEPT_SPARK@@\n     SYSTEM GRAMMAR:\n@@SYSTEM@@\n     WEB LEVERAGE: @@CONCEPT_WEBLEVERAGE@@";
 
 pub const RENDER_COMPOSITION: &str = "  @@COMP_INDEX_PREFIX@@@@COMPOSITION_FORM@@\n     SOURCE ID: @@COMPOSITION_ID@@\n     SPARK: @@COMPOSITION_SPARK@@\n     COMPOSITION GRAMMAR:\n@@GRAMMAR@@\n     WEB LEVERAGE: @@COMPOSITION_WEBLEVERAGE@@";
 
