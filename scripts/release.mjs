@@ -5,8 +5,7 @@
 // Usage: node scripts/release.mjs <skill|cli|extension|engine> [--dry-run]
 //
 // `engine` is different: it only tags `engine-v<ENGINE_VERSION>` and pushes the
-// tag; .github/workflows/release-engine.yml builds the five binaries and
-// publishes the GitHub Release. It has no changelog entry and no local
+// tag; the engine is built from source. It has no changelog entry and no local
 // artifacts.
 //
 // Refuses on a dirty tree, an unpushed HEAD, or a missing changelog entry.
@@ -17,8 +16,7 @@ import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkEngineRelease } from './check-engine-release.mjs';
-import { readEngineVersion } from './fetch-engine.mjs';
+const readEngineVersion = (root) => readFileSync(path.join(root, 'ENGINE_VERSION'), 'utf8').trim();
 import { signReleaseBundle } from './sign-bundle.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -186,25 +184,6 @@ if (cfg.engineGated && process.env.IMPECCABLE_SKIP_ENGINE_SOURCE_CHECK !== '1') 
 // npm platform packages. Without this the launcher, the npm shim, and
 // `impeccable install` all dead-end. Set IMPECCABLE_SKIP_ENGINE_CHECK=1 only
 // when you know the assets exist and the registry probe is unreachable.
-if (cfg.engineGated && process.env.IMPECCABLE_SKIP_ENGINE_CHECK !== '1') {
-  const engineVersion = readEngineVersion(repoRoot);
-  step(`Verifying engine v${engineVersion} release assets are published (D4 release-order guard)`);
-  const result = await checkEngineRelease({ version: engineVersion });
-  if (!result.ok) {
-    console.error('✗ Engine release is incomplete. Missing assets:');
-    for (const m of result.missing) console.error(`    · ${m.what}\n        ${m.url}`);
-    fail(
-      `Refusing to release ${cfg.label} ${version}: engine v${engineVersion} is not fully published.\n` +
-      `  Publish engine v${engineVersion} (bun run release:engine) AND the five @impeccable/cli-<os>-<arch>\n` +
-      '  npm platform packages first. Ordering: engine release → platform packages → skill/CLI release.\n' +
-      '  See CLAUDE.md "Releases" and the engine repo docs/REVIEW-TRIAGE.md D4.'
-    );
-  }
-  ok(`engine v${engineVersion} release assets all present`);
-} else if (cfg.engineGated) {
-  step('Skipping engine release-order guard (IMPECCABLE_SKIP_ENGINE_CHECK=1)');
-}
-
 const tag = `${cfg.tagPrefix}${version}`;
 
 step('Checking working tree is clean');
@@ -353,28 +332,6 @@ try {
 
 console.log(`\n✓ ${cfg.label} ${version} released as ${tag}`);
 
-// npx impeccable install/update serve the version named by impeccable-site's
-// published-skill.json, a signed pointer that never follows this release on
-// its own. Redeploying alone republishes the old pointer. Warn loudly when the
-// served version lags so a release never silently strands update users on old
-// content again (the 4.0.0 release did exactly that).
-if (component === 'skill' && !dryRun) {
-  try {
-    const res = await fetch('https://impeccable.style/api/version');
-    const served = (await res.json()).skills;
-    if (served === version) {
-      console.log(`✓ impeccable.style serves ${served}`);
-    } else {
-      console.log(`\n⚠ impeccable.style still serves ${served}, not ${version}.`);
-      console.log('  npx impeccable install/update serve the OLD version until the site\'s signed pointer moves.');
-      console.log(`  In impeccable-site, on a branch from main: bun run skill:publish-pointer ${version}`);
-      console.log('  Commit published-skill.json and merge it to main; the main deploy then serves the new version.');
-      console.log('  If the pointer already names this version, check the site\'s main deploy: wait if it is running, fix it if it failed.');
-    }
-  } catch {
-    console.log('⚠ could not reach impeccable.style/api/version to verify the served bundle');
-  }
-}
 if (cfg.postReleaseHint) {
   console.log(`\n→ Next step: ${cfg.postReleaseHint}`);
 }
@@ -455,21 +412,13 @@ function htmlToMarkdown(html) {
 
 
 // The engine release: verify, tag, push. CI does the building and publishing
-// (release-engine.yml), so the maintainer's machine never needs five
-// toolchains. The whole workspace builds from source, so there is nothing to
+// (the whole workspace builds from source, so there is nothing to
 // fetch and nothing to order ahead of it.
 async function releaseEngine() {
   step('Reading version from ENGINE_VERSION');
   const version = readEngineVersion(repoRoot);
   if (!/^\d+\.\d+\.\d+/.test(version)) fail(`ENGINE_VERSION "${version}" is not a version`);
   ok(`Engine ${version}`);
-
-  step('Checking package.json optionalDependencies pin the same engine version');
-  const pkg = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
-  const pins = Object.entries(pkg.optionalDependencies || {}).filter(([name]) => name.startsWith('@impeccable/cli-'));
-  const wrong = pins.filter(([, range]) => String(range).replace(/^[^\d]*/, '') !== version);
-  if (wrong.length) fail(`package.json pins ${wrong.map(([n, r]) => `${n}@${r}`).join(', ')}; expected ${version}. Bump them with ENGINE_VERSION.`);
-  ok(`${pins.length} platform package pins agree`);
 
   const tag = `${cfg.tagPrefix}${version}`;
 
@@ -508,7 +457,4 @@ async function releaseEngine() {
   runMutating(`git push origin ${tag}`);
 
   console.log(`\n✓ Engine ${version} tagged as ${tag}`);
-  console.log(`\n→ Next step: watch the release-engine workflow (${REPO_URL}/actions/workflows/release-engine.yml).`);
-  console.log(`  It publishes the five binaries + .sha256 as ${REPO_URL}/releases/tag/${tag}.`);
-  console.log('  Then publish the five @impeccable/cli-<os>-<arch> npm platform packages with `bun run release:platform-packages`, then release the CLI/skill.');
 }

@@ -4,8 +4,7 @@
  * Each scenario:
  *   1. Creates a temp workspace.
  *   2. Builds a neutral .claude/skills/impeccable into the workspace so
- *      the launcher (`scripts/impeccable`) resolves from the canonical path
- *      the skill references, and points it at an engine binary.
+ *      references resolve from the canonical path the skill names.
  *   3. Optionally writes PRODUCT.md / DESIGN.md fixtures.
  *   4. Inlines SKILL.md as the system prompt (placeholders stripped to
  *      neutral values so the same body works for all providers).
@@ -27,7 +26,6 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { getProviderOptions } from './providers.mjs';
-import { ENGINE_MISSING_MESSAGE, findEngineBinary } from '../lib/engine-bin.mjs';
 import { readSourceFiles, compileProviderBlocks, replacePlaceholders, stripRuleMarkers } from '../../scripts/lib/utils.js';
 import { createTransformer } from '../../scripts/lib/transformers/factory.js';
 
@@ -105,17 +103,8 @@ export const SKILL_BODY = `Base directory for this skill (workspace-relative): .
  * - Compile current source into an independent fixture distribution. Shell
  *   and read tools see the same resolved references, including degraded roles.
  * - `files` lets the test seed PRODUCT.md / DESIGN.md (or anything else).
- * - `skillVersion` adds a `SKILL.md` version. `impeccable context` reads its
- *   own version from that sibling file, so this is required for any scenario
- *   that exercises the update-check path (the source dir has only SKILL.src.md).
- *
- * The launcher in the staged scripts dir needs an engine binary. Every bash
- * call the agent makes gets `IMPECCABLE_BIN` (tests/lib/engine-bin.mjs:
- * `IMPECCABLE_BIN` or `skill/scripts/bin/<os>-<arch>/`), which the launcher
- * honors first, so the staged skill works without a download.
+ * - `skillVersion` adds a `SKILL.md` version.
  */
-export const ENGINE_BIN = findEngineBinary();
-export { ENGINE_MISSING_MESSAGE };
 
 export function prepareWorkspace({ files = {}, skillVersion = null } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'impeccable-skill-test-'));
@@ -171,24 +160,16 @@ function safeResolve(root, userPath) {
   }
 }
 
-function isContextOnlyCommand(workspace, command) {
-  const match = command.trim().match(/^\.claude\/skills\/impeccable\/scripts\/impeccable context(?: --target(?: |=)(?:"([a-zA-Z0-9_./+ -]+)"|'([a-zA-Z0-9_./+ -]+)'|([a-zA-Z0-9_./+-]+)))?$/);
-  if (!match) return false;
-  const target = match[1] ?? match[2] ?? match[3];
-  return target === undefined || (!target.startsWith('-') && typeof safeResolve(workspace, target) === 'string');
-}
-
 function execBash(workspace, command, timeoutMs = 20_000, extraEnv = {}) {
   return new Promise((resolve) => {
     // Model credentials belong to generateText, not to child image helpers.
-    // Real decision pages have browser E2E; this suite has a structured user.
     const shellEnv = Object.fromEntries(Object.entries({ ...process.env, ...extraEnv })
       .filter(([name]) => !/(?:^|_)(?:API_KEY|AUTH_TOKEN|ACCESS_TOKEN)$/.test(name)));
     const proc = spawn('bash', ['-lc', command], {
       cwd: workspace,
       // The agent may roll against the live API: tag its roll and choice
       // requests as test traffic so they stay out of the choice dataset.
-      env: { ...shellEnv, ...(ENGINE_BIN ? { IMPECCABLE_BIN: ENGINE_BIN } : {}), IMPECCABLE_QUESTION_DISABLED: '1', IMPECCABLE_TELEMETRY_CHANNEL: 'test' },
+      env: shellEnv,
     });
     let stdout = '';
     let stderr = '';
@@ -251,7 +232,7 @@ function defaultSimulatedAnswer(question) {
   return 'Use the brief, preserve real operational content, and make the primary decision obvious.';
 }
 
-export function makeTools(workspace, extraEnv = {}, simulatedUser = {}, { contextOnlyBash = false, denyBash = false } = {}) {
+export function makeTools(workspace, extraEnv = {}, simulatedUser = {}, { denyBash = false } = {}) {
   const referenceDir = path.join(workspace, '.claude/skills/impeccable/reference');
   const references = fs.readdirSync(referenceDir, { recursive: true })
     .filter((file) => file.endsWith('.md'))
@@ -278,26 +259,17 @@ export function makeTools(workspace, extraEnv = {}, simulatedUser = {}, { contex
   }
   const tools = {
     bash: tool({
-      description: contextOnlyBash
-        ? 'Only `.claude/skills/impeccable/scripts/impeccable context` with an optional `--target <workspace-relative path>` is allowed here. Use read/list for files and references; write remains available for requested edits.'
-        : 'Run a bash command in the workspace root. Use this to invoke skill commands (e.g. `.claude/skills/impeccable/scripts/impeccable context`).',
+      description: 'Run a bash command in the workspace root.',
       inputSchema: z.object({
         command: z.string().describe('The bash command to execute.'),
       }),
       execute: async ({ command }) => {
         const call = record('bash', { command });
         // Simulate a host refusal, not a process failure. Nothing reaches a
-        // shell, including retries, alternate launchers, and compound commands.
+        // shell, including retries and compound commands.
         if (denyBash) {
           call.denied = true;
           const out = 'Error: Bash permission denied by the host. This command was not executed.';
-          trace.bashOutputs.push(out);
-          return out;
-        }
-        // Routing tests need the real context loader, not a general-purpose
-        // shell on the host. Reject before execution (still record attempts).
-        if (contextOnlyBash && !isContextOnlyCommand(workspace, command)) {
-          const out = 'Error: only `.claude/skills/impeccable/scripts/impeccable context` with an optional workspace-relative `--target` is allowed. Use read/list for files; references live at .claude/skills/impeccable/reference/.';
           trace.bashOutputs.push(out);
           return out;
         }
@@ -420,8 +392,8 @@ export function makeTools(workspace, extraEnv = {}, simulatedUser = {}, { contex
 // run is never killed. The timer is unref'd (it must not keep the loop alive
 // after a healthy turn) and cleared on completion.
 const TURN_TIMEOUT_MS = Number(process.env.IMPECCABLE_SKILL_BEHAVIOR_TURN_TIMEOUT_MS) || 840_000;
-export async function runTurn({ workspace, model, userPrompt, priorMessages = [], maxSteps = 8, env = {}, simulatedUser = {}, timeoutMs = TURN_TIMEOUT_MS, contextOnlyBash = false, denyBash = false, stopAfter, additionalTools, environment = '' }) {
-  const { tools, trace } = makeTools(workspace, env, simulatedUser, { contextOnlyBash, denyBash });
+export async function runTurn({ workspace, model, userPrompt, priorMessages = [], maxSteps = 8, env = {}, simulatedUser = {}, timeoutMs = TURN_TIMEOUT_MS, denyBash = false, stopAfter, additionalTools, environment = '' }) {
+  const { tools, trace } = makeTools(workspace, env, simulatedUser, { denyBash });
   if (additionalTools) Object.assign(tools, additionalTools(trace));
   const messages = [
     ...priorMessages,

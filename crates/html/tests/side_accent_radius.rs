@@ -318,14 +318,6 @@ fn an_unread_stylesheet_keeps_a_card_it_never_saw_a_radius_for() {
             "{href}"
         );
     }
-    // A font service carries no box rules.
-    assert!(side_tabs_on_page(
-        &format!(
-            "<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Inter\">{square}"
-        ),
-        CARD_BODY
-    )
-    .is_empty());
     // A radius the engine read wins whatever else the page links.
     assert!(side_tabs_on_page(
         &format!(

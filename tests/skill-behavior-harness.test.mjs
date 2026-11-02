@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { MockLanguageModelV3 } from 'ai/test';
 import { prepareWorkspace, cleanupWorkspace, makeTools, runTurn, fileLoaded, SKILL_BODY } from './skill-behavior/harness.mjs';
-import { assertLauncherDenialWarningBeforeNextTool, assertPlanningFallbackWarning, assertNewWorkLifecycle, assertWorkflowAdvice, assertCommandComparison, missingReferences } from './skill-behavior/assertions.mjs';
+import { assertNewWorkLifecycle, assertWorkflowAdvice, assertCommandComparison, missingReferences } from './skill-behavior/assertions.mjs';
 import { CASE_STUDY_ANSWER } from './skill-behavior/fixtures.mjs';
 import { sourceHash as hashSources } from './skill-workflow/source-hash.mjs';
 import { assertCompleted, assertFreshCaptures, assertNoChangeDocumentation, assertDocumentationArtifacts } from './skill-workflow/assertions.mjs';
@@ -167,58 +167,15 @@ it('reference-loading evidence requires content, not a failed read or a filename
   }
 });
 
-it('headless behavior shells disable unattended decision pages and omit provider credentials', async () => {
+it('behavior shells omit provider credentials', async () => {
   const workspace = prepareWorkspace();
   try {
-    const { tools } = makeTools(workspace, { OPENAI_API_KEY: 'synthetic-secret', IMPECCABLE_QUESTION_DISABLED: '0' });
-    const result = await tools.bash.execute({ command: 'node -e \'console.log(JSON.stringify({disabled:process.env.IMPECCABLE_QUESTION_DISABLED,hasKey:!!process.env.OPENAI_API_KEY}))\'' });
-    assert.match(result, /"disabled":"1"/);
+    const { tools } = makeTools(workspace, { OPENAI_API_KEY: 'synthetic-secret' });
+    const result = await tools.bash.execute({ command: 'node -e \'console.log(JSON.stringify({hasKey:!!process.env.OPENAI_API_KEY}))\'' });
     assert.match(result, /"hasKey":false/);
     assert.doesNotMatch(result, /synthetic-secret/);
-    if (process.env.IMPECCABLE_BIN) {
-      const question = await tools.bash.execute({ command: '.claude/skills/impeccable/scripts/impeccable serve-question --start --payload nonexistent.json' });
-      assert.match(question, /^exit=2\n/);
-      assert.match(question, /use the structured question tool instead/);
-      assert.equal(fs.existsSync(path.join(workspace, '.impeccable/questions')), false);
-    }
   } finally {
     cleanupWorkspace(workspace);
-  }
-});
-
-it('documentation fallback requires an assistant warning before the first tool call after denial', () => {
-  const call = { role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'context', toolName: 'bash', input: { command: '.claude/skills/impeccable/scripts/impeccable context' } }] };
-  const denial = { role: 'tool', content: [{ type: 'tool-result', toolCallId: 'context', toolName: 'bash', output: { type: 'text', value: 'Error: Bash permission denied by the host. This command was not executed.' } }] };
-  const warning = { role: 'assistant', content: 'Context loading did not run because the launcher was denied.' };
-  const read = { role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'read', toolName: 'read', input: { path: 'reference/document.md' } }] };
-  const write = { role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'write', toolName: 'write', input: { path: 'DESIGN.md' } }] };
-  assert.doesNotThrow(() => assertLauncherDenialWarningBeforeNextTool([call, denial, warning, read, write]));
-  assert.doesNotThrow(() => assertLauncherDenialWarningBeforeNextTool([call, denial, { role: 'assistant', content: [{ type: 'text', text: warning.content }, ...read.content] }, write]));
-  for (const messages of [
-    [call, denial, read, warning, write], // Reads first, warns only before the write.
-    [call, denial, read, write, warning], // Final-only disclosure.
-    [warning, call, denial, read], // Not a response to the actual denial.
-    [call, denial, warning], // Warning with no follow-up tool call.
-  ]) {
-    assert.throws(() => assertLauncherDenialWarningBeforeNextTool(messages), assert.AssertionError);
-  }
-});
-
-it('planning fallback requires an assistant warning between the denial and context reads', () => {
-  const call = { role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'context', toolName: 'bash', input: { command: '.claude/skills/impeccable/scripts/impeccable context' } }] };
-  const denial = { role: 'tool', content: [{ type: 'tool-result', toolCallId: 'context', toolName: 'bash', output: { type: 'text', value: 'Error: Bash permission denied by the host. This command was not executed.' } }] };
-  const warning = { role: 'assistant', content: 'Context loading did not run because the launcher was denied.' };
-  const read = { role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'read', toolName: 'read', input: { path: 'PRODUCT.md' } }] };
-  assert.doesNotThrow(() => assertPlanningFallbackWarning([call, denial, warning, read]));
-  assert.doesNotThrow(() => assertPlanningFallbackWarning([call, denial, { role: 'assistant', content: [{ type: 'text', text: warning.content }, ...read.content] }]));
-  for (const messages of [
-    [call, denial, read], // Silent continuation.
-    [call, denial, read, warning], // Final-only disclosure.
-    [warning, call, denial, read], // Not a response to the actual denial.
-    [call, denial, { ...warning, role: 'user' }, read],
-    [call, { ...denial, content: [{ ...denial.content[0], toolCallId: 'unrelated' }] }, warning, read],
-  ]) {
-    assert.throws(() => assertPlanningFallbackWarning(messages), assert.AssertionError);
   }
 });
 
@@ -320,82 +277,15 @@ it('optional diagnostics retain tool evidence when a provider turn fails', async
   }
 });
 
-it('loaded-skill metadata resolves to the staged launcher and readable references', async () => {
+it('loaded-skill metadata resolves to readable staged references', async () => {
   const workspace = prepareWorkspace();
   try {
     const baseDir = SKILL_BODY.match(/^Base directory for this skill \(workspace-relative\): (.+)$/m)?.[1];
     assert.ok(baseDir, 'the host must supply the skill directory separately from its instructions');
-    assert.ok(fs.statSync(path.join(workspace, baseDir, 'scripts/impeccable')).isFile());
     const { tools, trace } = makeTools(workspace, {}, {}, { denyBash: true });
     await tools.read.execute({ path: `${baseDir}/reference/polish.md` });
     await tools.read.execute({ path: `${baseDir}/reference/craft-floor.md` });
     assert.ok(trace.toolCalls.every((call) => call.succeeded));
-    assert.ok(SKILL_BODY.includes('<skill-base-dir>/scripts/impeccable context'), 'metadata must not rewrite away the path-resolution behavior under test');
-  } finally {
-    cleanupWorkspace(workspace);
-  }
-});
-
-it('denied-launcher tools reject every shell attempt without executing or modifying the skill', async () => {
-  const workspace = prepareWorkspace({ files: { 'index.html': 'before' } });
-  try {
-    const { tools, trace } = makeTools(workspace, {}, {}, { denyBash: true });
-    for (const command of [
-      '.claude/skills/impeccable/scripts/impeccable context',
-      '.claude/skills/impeccable/scripts/impeccable context; echo bad > index.html',
-      'echo bad > index.html',
-    ]) {
-      assert.match(await tools.bash.execute({ command }), /permission denied/i);
-    }
-    assert.equal(fs.readFileSync(path.join(workspace, 'index.html'), 'utf8'), 'before');
-    assert.ok(trace.toolCalls.every((call) => call.denied && call.mutatedPaths.length === 0));
-    const skillPath = '.claude/skills/impeccable/reference/polish.md';
-    const before = await tools.read.execute({ path: skillPath });
-    assert.match(await tools.write.execute({ path: skillPath, contents: 'bad' }), /^Error:/);
-    assert.equal(await tools.read.execute({ path: skillPath }), before);
-    await tools.read.execute({ path: 'missing.md' });
-    assert.deepEqual(trace.toolCalls.filter((call) => call.name === 'read').map((call) => call.succeeded), [true, true, false]);
-    await tools.write.execute({ path: 'index.html', contents: 'after' });
-    assert.deepEqual(trace.toolCalls.flatMap((call) => call.mutatedPaths), ['index.html']);
-  } finally {
-    cleanupWorkspace(workspace);
-  }
-});
-
-it('context-only routing tools reject shell searches and compound commands before execution', async () => {
-  const workspace = prepareWorkspace({ files: { 'index.html': 'before' } });
-  try {
-    const { tools, trace } = makeTools(workspace, {}, {}, { contextOnlyBash: true });
-    for (const command of [
-      'find / -name routing.md',
-      '.claude/skills/impeccable/scripts/impeccable context; echo bad > index.html',
-      '.claude/skills/impeccable/scripts/impeccable context --target index.html; echo bad > index.html',
-      '.claude/skills/impeccable/scripts/impeccable context --target "$(echo bad > index.html)"',
-      '.claude/skills/impeccable/scripts/impeccable context --target=index.html; echo bad > index.html',
-      '.claude/skills/impeccable/scripts/impeccable context --target="$(echo bad > index.html)"',
-      'echo bad > index.html',
-    ]) {
-      assert.match(await tools.bash.execute({ command }), /^Error:/);
-    }
-    assert.equal(fs.readFileSync(path.join(workspace, 'index.html'), 'utf8'), 'before');
-    assert.equal(trace.bashCommands.length, 7, 'rejected attempts remain observable');
-    assert.ok(trace.toolCalls.every((call) => call.mutatedPaths.length === 0));
-  } finally {
-    cleanupWorkspace(workspace);
-  }
-});
-
-it('successful-loader controls accept a workspace-relative target', { skip: !process.env.IMPECCABLE_BIN }, async () => {
-  const workspace = prepareWorkspace({ files: { 'index.html': '<html></html>' } });
-  try {
-    const { tools } = makeTools(workspace, {}, {}, { contextOnlyBash: true });
-    assert.match(await tools.bash.execute({ command: '.claude/skills/impeccable/scripts/impeccable context --target index.html' }), /^exit=0\n/);
-    for (const separator of [' ', '=']) {
-      for (const target of ['index.html', 'src/routes/+page.svelte', '"src/routes/+page.svelte"', '"my page.html"', "'my page.html'"]) {
-        assert.match(await tools.bash.execute({ command: `.claude/skills/impeccable/scripts/impeccable context --target${separator}${target}` }), /^exit=0\n/);
-      }
-      assert.match(await tools.bash.execute({ command: `.claude/skills/impeccable/scripts/impeccable context --target${separator}../outside.html` }), /^Error:/);
-    }
   } finally {
     cleanupWorkspace(workspace);
   }
@@ -408,11 +298,10 @@ it('workspace tools reject symlink escapes and preserve staged-skill write prote
     fs.symlinkSync(outside, path.join(workspace, 'escape'), 'junction');
     fs.symlinkSync(path.join(workspace, 'local'), path.join(workspace, 'alias'), 'junction');
     fs.symlinkSync(path.join(workspace, '.claude'), path.join(workspace, 'skill-alias'), 'junction');
-    const { tools } = makeTools(workspace, {}, {}, { contextOnlyBash: true });
+    const { tools } = makeTools(workspace);
     assert.match(await tools.read.execute({ path: 'escape/value.txt' }), /^Error:/);
     assert.match(await tools.list.execute({ path: 'escape' }), /^Error:/);
     assert.match(await tools.write.execute({ path: 'escape/new/file.txt', contents: 'bad' }), /^Error:/);
-    assert.match(await tools.bash.execute({ command: '.claude/skills/impeccable/scripts/impeccable context --target escape/value.txt' }), /^Error:/);
     assert.match(await tools.write.execute({ path: 'skill-alias/skills/impeccable/reference/routing.md', contents: 'bad' }), /^Error:/);
     assert.equal(await tools.read.execute({ path: 'alias/value.txt' }), 'local');
     await tools.write.execute({ path: 'alias/nested/new.txt', contents: 'allowed' });
@@ -425,10 +314,10 @@ it('workspace tools reject symlink escapes and preserve staged-skill write prote
   }
 });
 
-it('context-only routing tools keep project writes observable but protect the staged skill', async () => {
+it('workspace tools keep project writes observable but protect the staged skill', async () => {
   const workspace = prepareWorkspace({ files: { 'index.html': 'before' } });
   try {
-    const { tools, trace } = makeTools(workspace, {}, {}, { contextOnlyBash: true });
+    const { tools, trace } = makeTools(workspace);
     const skillPath = '.claude/skills/impeccable/reference/routing.md';
     const before = await tools.read.execute({ path: skillPath });
     assert.match(await tools.write.execute({ path: skillPath, contents: 'bad' }), /^Error:/);

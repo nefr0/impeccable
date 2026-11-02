@@ -1,0 +1,80 @@
+{
+  "title": "Impeccable fork (nefr0)",
+  "subtitle": "Text-only skill; optional engine is built locally and makes no remote calls; no font family tooling",
+  "items": [
+    {
+      "group": "Agent harness",
+      "id": "harness",
+      "icon": "bot",
+      "color": "indigo",
+      "items": [
+        {
+          "id": "skill",
+          "label": "Impeccable skill",
+          "tech": "SKILL.md + reference/*.md",
+          "desc": "Design guidance; reads project context itself",
+          "icon": "book-open"
+        }
+      ]
+    },
+    {
+      "group": "User project",
+      "id": "project",
+      "icon": "folder",
+      "color": "teal",
+      "items": [
+        {
+          "id": "context",
+          "label": "Project context",
+          "tech": "PRODUCT.md, DESIGN.md",
+          "desc": "Plus .impeccable/surfaces briefs",
+          "icon": "file-text"
+        }
+      ]
+    },
+    {
+      "group": "Optional engine CLI",
+      "id": "engine",
+      "icon": "cpu",
+      "color": "orange",
+      "items": [
+        {
+          "id": "launcher",
+          "label": "Launcher",
+          "tech": "impeccable, cli.js",
+          "desc": "Local binary lookup only",
+          "icon": "terminal"
+        },
+        {
+          "id": "binary",
+          "label": "Engine binary",
+          "tech": "Rust, cargo build",
+          "desc": "No TLS; localhost HTTP only",
+          "icon": "box"
+        },
+        {
+          "id": "detector",
+          "label": "Detector + comp",
+          "tech": "crates/detect, comp",
+          "desc": "Font rules and font-match removed",
+          "icon": "scan-search"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "skill",
+      "to": "context",
+      "label": "reads directly"
+    },
+    {
+      "from": "launcher",
+      "to": "binary"
+    },
+    {
+      "from": "binary",
+      "to": "detector"
+    }
+  ]
+}

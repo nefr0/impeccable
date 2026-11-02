@@ -50,14 +50,6 @@ One raster region end to end: crop the comp region, send the crop as the edits-e
 
 The asset producer agent's job shrinks to: produce the spec's plates, one line per plate, `blockers`, `assumptions`. No inventory of its own (the spec is the inventory), no strategy taxonomy.
 
-### 4b. Type: `font-match.mjs` and the catalog fingerprint index
-
-Faces used to be chosen by name, and the first-round misses said so: headline wider and lighter than the comp, footer heavier. `font-match.mjs --measure <region>` fingerprints the comp crop with `lib/font-fingerprint.mjs`: per-line, size-invariant shape features (glyph width and x-height against the reference height, stem width, stroke contrast, serif ratio, ink density, vertical ink profile, run-length quantiles), all normalized so the same face gives the same numbers at any point size and on different text. The MEASURE line prints cap height, width class, weight class, and tracking, and the spec keeps the summary on the region.
-
-`--rank <region>` no longer starts from a hand-written shortlist. `skill/scripts/data/font-index.json` holds the same fingerprint for ~3,100 Google Fonts faces (every latin family at 300 / 400 / 700 where shipped) rendered at two cap heights, 48px and 14px, because the features hold within a factor of two in size but not across that span; a crop under 22px cap queries the 14px index. The 25 nearest faces by a noise-normalized weighted distance (fitted on 299 held-out probes with different text; 42% top-1 and 72% top-5 family recall at ~30px cap, 52 / 71 at 14px) become the candidates, together with whatever names the model passes in. Those are then rendered with the region's own text at the comp's cap height, fingerprinted again, and ranked by the same distance, so the CATALOG line is the index's guess and the RANK lines are measured on the actual words. Below 10px cap the script says to size by the box and stops. The index is ~700 KB, packed base-36, rebuilt at release time by `scripts/build-font-index.mjs` (network + Playwright); the per-width-class shortlist stays only as the fallback when the index file is missing.
-
-On the moto comp: headline (72px cap, condensed heavy mixed case) ranks League Gothic first with Karantina and Medula One behind it, where the old width/weight formula gave Anton SC and BBH Bogle; for the subhead the index puts Akshar 300 and Reddit Sans Condensed 300 on top, credible condensed light faces where before the class was wrong altogether.
-
 ### 5. Two detector rules
 
 - `organic-clip-path`: `clip-path: polygon()` with 10+ off-grid vertices, or `clip-path: path()` with 3+ curve segments. Geometric clips (cut corners, diagonals, hexagons, arrows) pass; `circle()`/`inset()` pass.
@@ -145,7 +137,6 @@ What the traces said, and what changed from them:
 
 Branch over main on every niche, every sample; 11 now finishes the whole machine in 41-68 turns (was 68-101). The 07 hero sits at 63-68 against a 72 floor across five samples in two sweeps: that comp (a service-manual page with three plates and a rotated spine) is where the remaining points are, and the traces named the reasons:
 
-- A body-copy region measured at cap 160px off the carburetor drawing sharing its crop, and a track list measured at 389px because staff rules and a black page edge fused eight rows into one line. `font-fingerprint` now drops full-height inked columns from the row profile, sets tall non-text runs aside, and measures the lettering class holding the most ink (multi-line first). Both crops now read 15px and 21px.
 - Passed plates scored `missing` at the hero on content, then again at responsive. Both gates now score a passed plate on placement.
 - One session forced two gates by quoting a brief line ("should feel like an extension of her artwork") as user permission. `forceAllowed` now requires the user's words reported or quoted, a downgrade verb, and the comp noun in one reason.
 - One session spent 25 turns keying plates with `magick` after using the harness image tool; the plates NEXT line now names `generate-image.mjs --plate` as the tool and the harness tool as the fallback.
@@ -269,7 +260,7 @@ The artifact fix is confirmed in production conditions. All four packets start `
 
 The finding is not about plates. Every gate that should have fired did fire, and every sample ignored it. All four received `COMP_ROUND_OPEN` ("a detector pass is not a finish") plus explicit gate failures, and all four declared completion anyway at 40 to 72 turns with most of the budget unspent. Sol's remaining failure is compliance, not knowledge or capability, so further sol rounds are not worth buying.
 
-Two defects surfaced that belong to the skill rather than to sol. The spec gate's escape hatches hide their own use: `codeDrawn: true` and `container: true` in `regions.json` override the painted-material refusal, and neither key persists into `spec.json`, so the shipped spec shows a clean classification with no trace that a refusal was overridden. And `font-match.mjs` cannot reach a browser inside the OpenAI sandbox (`browserType.launch: EPERM` on `mkdtemp /tmp/playwright-artifacts-*`), so every sample fell back to an estimated size and rendered headlines at 186 to 247 percent of the comp's cap height, which is a large share of the structure gap the hero gate then reports.
+Two defects surfaced that belong to the skill rather than to sol. The spec gate's escape hatches hide their own use: `codeDrawn: true` and `container: true` in `regions.json` override the painted-material refusal, and neither key persists into `spec.json`, so the shipped spec shows a clean classification with no trace that a refusal was overridden.
 
 ## Tenth sweep (2026-08-28): opus confirmation on the rebased branch
 
@@ -298,4 +289,4 @@ Abdul ran both handoff checks on the rebased branch (full write-ups in PR #599's
 
 The decision that followed, made by Paul on return: **above `HERO_MIN`, the numeric readings advise instead of block.** Hard vetoes stay unconditional at any score (a missing region, a contradicted plate or text block, an inline-SVG illustration, a clipped plate, invented ink); ink colours, letter-spacing, line pitch, strip heights, and box positions print as advisories with the pass and belong to the polish pass before responsive. Under this condition every sweep-10 sample closes its hero, which settles 07 without another paid round.
 
-Two ninth-sweep defects are fixed with it: the spec's escape hatches (`codeDrawn`, `container`, `bleed`) now persist into `spec.json` and announce themselves as WARN lines (an overridden refusal used to vanish from the record), and `font-match` probes `os.tmpdir()` before launching a browser and points `TMPDIR` at `.impeccable/tmp` when the sandbox's `/tmp` is unwritable (every ninth-sweep rank had silently fallen back to the catalog and set headlines at twice the comp's cap).
+One ninth-sweep defect is fixed with it: the spec's escape hatches (`codeDrawn`, `container`, `bleed`) now persist into `spec.json` and announce themselves as WARN lines (an overridden refusal used to vanish from the record).

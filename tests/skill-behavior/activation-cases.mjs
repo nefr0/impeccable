@@ -56,7 +56,6 @@ export const CASES = [
   { id: 'clarify_distill', cat: 'distill', expect: true, prompt: 'The project creation form has 14 fields and people abandon it. Simplify it.' },
   { id: 'component', cat: 'build', expect: true, prompt: 'Make a nice-looking date range picker component for our design system.' },
   { id: 'overdrive', cat: 'overdrive', expect: true, prompt: 'I want the hero of our portfolio to have a jaw-dropping WebGL effect that reacts to the cursor.' },
-  { id: 'live_iterate', cat: 'live', expect: true, prompt: 'Open the app in the browser and let me iterate on a few variants of the hero card visually.' },
   // document-shaped design requests (#744 weakness)
   { id: 'completion_744', cat: 'document', expect: true, prompt: 'Work out the visual system this codebase is already using - type scale, colour, spacing, component patterns - and write it down at the project root, in the file a later session would look for, so a new contributor can pick it up without asking.' },
   { id: 'design_md', cat: 'document', expect: true, prompt: 'Write a DESIGN.md for this app.' },

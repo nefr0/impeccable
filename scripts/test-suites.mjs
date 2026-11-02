@@ -6,10 +6,8 @@ export const OPT_IN_SUITES = [
   'cli-remote-e2e',
   'live-e2e',
   'live-e2e-accept-cleanup',
-  'new-work-e2e',
   'skill-behavior',
   'skill-activation',
-  'skill-workflow',
   'live-svelte-adapter-deepseek',
 ];
 
@@ -28,17 +26,16 @@ const COMMON_INFRA_PATTERNS = [
 
 export const SUITES = {
   core: {
-    description: 'Build, provider transforms, hook manifests, plugin validators, and prose gates.',
+    description: 'Build, provider transforms, plugin validators, and prose gates.',
     triggers: [
       /^ui\/component-review\//,
       /^crates\/context\/assets\/component-review\.js$/,
       ...COMMON_INFRA_PATTERNS,
       /^scripts\/(?!build-extension)/,
-      /^skill\/(SKILL\.src\.md|agents\/|reference\/|scripts\/|hermes-plugin\/)/,
+      /^skill\/(SKILL\.src\.md|agents\/|reference\/|scripts\/)/,
       /^ENGINE_VERSION$/,
       /^README(\.npm)?\.md$/,
       /^vscode\//,
-      /^\.github\/workflows\/release-engine\.yml$/,
       /^cli\/bin\//,
     ],
     commands: [
@@ -60,7 +57,6 @@ export const SUITES = {
           'tests/validate-plugin-versions.test.js',
           'tests/validate-plugin-manifest.test.js',
           'tests/plugin-paths.test.js',
-          'tests/release-engine-workflow.test.js',
           'tests/workflow-security.test.js',
         ],
       },
@@ -77,12 +73,7 @@ export const SUITES = {
           'tests/ci-test-plan.test.mjs',
           'tests/rust-test-selection.test.mjs',
           'tests/cli-shim.test.mjs',
-          'tests/check-engine-release.test.mjs',
-          'tests/launcher-download.test.mjs',
-          'tests/publish-platform-packages.test.mjs',
           'tests/github-sheriff.test.mjs',
-          'tests/hook-build.test.mjs',
-          'tests/hermes-plugin.test.mjs',
           'tests/openai-plugin.test.mjs',
           'tests/cursor-plugin.test.mjs',
           'tests/vscode-extension.test.mjs',
@@ -91,7 +82,6 @@ export const SUITES = {
           'tests/bundle-signing.test.mjs',
           'tests/skill-reference.test.mjs',
           'tests/skill-behavior-harness.test.mjs',
-          'tests/readme-gitignore.test.mjs',
           'tests/test-suites.test.mjs',
         ],
       },
@@ -242,28 +232,6 @@ export const SUITES = {
       },
     ],
   },
-  'new-work-e2e': {
-    description: 'Playwright smoke checks of native decision and review pages, plus the offline fake image generator.',
-    optIn: true,
-    needsPlaywright: true,
-    triggers: [
-      ...COMMON_INFRA_PATTERNS,
-      /^ENGINE_VERSION$/,
-      /^tests\/new-work-e2e(\.test\.mjs|\/)/,
-      /^tests\/review-theme\.test\.mjs$/,
-      /^ui\/component-review\//,
-      /^crates\/context\/src\/(question_page|serve_question)\.rs$/,
-      /^crates\/context\/src\/component_review\/server\.rs$/,
-    ],
-    commands: [
-      {
-        runner: 'node',
-        timeoutMs: 600000,
-        forceExit: true,
-        files: ['tests/new-work-e2e.test.mjs', 'tests/review-theme.test.mjs'],
-      },
-    ],
-  },
   'live-e2e-accept-cleanup': {
     description: 'Provider-backed post-accept cleanup regression.',
     optIn: true,
@@ -323,33 +291,6 @@ export const SUITES = {
       wallClockMs: 1_200_000,
       files: ['tests/skill-behavior/activation.eval.mjs'],
     }],
-  },
-  'skill-workflow': {
-    description: 'Explicitly opt-in completed workflows with a preflighted browser.',
-    optIn: true,
-    needsPlaywright: true,
-    triggers: [
-      ...COMMON_INFRA_PATTERNS,
-      /^skill\//,
-      /^ENGINE_VERSION$/,
-      /^tests\/skill-workflow\//,
-      // activation.eval.mjs and its fixtures belong to skill-activation, which
-      // nothing here loads; editing them should not bill this lane.
-      /^tests\/skill-behavior\/(?!activation[.-])/,
-    ],
-    commands: [
-      { runner: 'node', files: ['tests/skill-workflow-browser.test.mjs'] },
-      {
-        runner: 'node', timeoutMs: 240000, wallClockMs: 600000,
-        files: ['tests/skill-workflow/finish-handoff.test.mjs'],
-      },
-      {
-        runner: 'node',
-        timeoutMs: 900000,
-        wallClockMs: 3_600_000,
-        files: ['tests/skill-workflow/full-build.test.mjs'],
-      },
-    ],
   },
   'live-svelte-adapter-deepseek': {
     description: 'DeepSeek-backed Svelte adapter browser sweep.',

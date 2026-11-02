@@ -26,12 +26,12 @@ use impeccable_core::checks::measures::{
 };
 use impeccable_core::checks::rules::{
     check_borders, check_colors_deduped_shaped, check_glow, check_hero_eyebrow, check_hover_contrast,
-    check_icon_tile, check_italic_serif, check_kicker_above_heading, check_motion,
+    check_icon_tile, check_kicker_above_heading, check_motion,
     check_placeholder_colors, check_stripe_child, is_close_letter_text, is_emoji_only_text,
     is_glyph_only_text, is_heading_tag, is_icon_ligature_text, is_rounded_away_from_side,
     names_close_control,
     resolve_hero_heading_size_px, BorderOpts, ColorOpts, GlowOpts, HeroEyebrowOpts,
-    HoverContrastOpts, IconTileOpts, ItalicSerifOpts, KickerCandidate, MotionOpts, RuleHit,
+    HoverContrastOpts, IconTileOpts, KickerCandidate, MotionOpts, RuleHit,
     SafeTagTextSeen, Sides,
 };
 use impeccable_core::checks::text_rules::{
@@ -1380,54 +1380,6 @@ pub fn check_element_icon_tile(el: &StaticElement<'_>, tag: &str) -> Vec<RuleHit
         icon_child_width: icon_width,
         heading_is_card_title: false,
     })
-}
-
-/// JS: checks.mjs#checkElementItalicSerif(el, style, tag)
-pub fn check_element_italic_serif(
-    el: &StaticElement<'_>,
-    style: &StyleValues,
-    tag: &str,
-) -> Vec<RuleHit> {
-    if tag != "h1" && tag != "h2" {
-        return Vec::new();
-    }
-    let mut pending = vec![*el];
-    while let Some(node) = pending.pop() {
-        let mut ancestor = Some(node);
-        let mut hidden = false;
-        while let Some(parent) = ancestor {
-            let s = parent.style();
-            if sv(s, "display") == "none"
-                || matches!(sv(s, "visibility"), "hidden" | "collapse")
-                || sv(s, "contentVisibility") == "hidden"
-                || sv_opt(s, "opacity").is_some_and(|v| parse_float(v) <= 0.01)
-                || parent.get_attribute("aria-hidden").as_deref() == Some("true")
-                || parent.get_attribute("hidden").is_some()
-            {
-                hidden = true;
-                break;
-            }
-            ancestor = parent.parent_element();
-        }
-        if hidden {
-            continue;
-        }
-        if !js::trim(&node.direct_text()).is_empty() {
-            let s = if node == *el { style } else { node.style() };
-            let hits = check_italic_serif(&ItalicSerifOpts {
-                tag: tag.to_string(),
-                font_style: Some(sv(s, "fontStyle").to_string()),
-                font_family: Some(sv(s, "fontFamily").to_string()),
-                font_size: resolve_hero_heading_size_px(sv_opt(s, "fontSize")),
-                heading_text: Some(el.text_content()),
-            });
-            if !hits.is_empty() {
-                return hits;
-            }
-        }
-        pending.extend(node.children().into_iter().rev());
-    }
-    Vec::new()
 }
 
 /// JS: checks.mjs#checkElementHeroEyebrow(el, style, tag, window, customPropMap)

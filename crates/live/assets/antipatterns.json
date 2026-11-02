@@ -12,12 +12,6 @@
     "description": "Thick accent border on a rounded card — the border clashes with the rounded corners. Remove the border or the border-radius."
   },
   {
-    "id": "overused-font",
-    "name": "Overused font",
-    "category": "slop",
-    "description": "Inter, Roboto, Fraunces, Geist, Plus Jakarta Sans, and Space Grotesk are used on so many sites they no longer feel distinctive. Each new wave of AI-generated UIs converges on the same handful of faces. Choose a face that gives your interface personality."
-  },
-  {
     "id": "flat-type-hierarchy",
     "name": "Flat type hierarchy",
     "category": "slop",
@@ -128,12 +122,6 @@
     "name": "Icon tile stacked above heading",
     "category": "slop",
     "description": "A small rounded-square icon container above a heading is the universal AI feature-card template — every generator outputs this exact shape. Try a side-by-side icon and heading, or let the icon sit in flow without its own container."
-  },
-  {
-    "id": "italic-serif-display",
-    "name": "Italic serif display headline",
-    "category": "slop",
-    "description": "Oversized italic serif (Fraunces, Recoleta, Playfair, Newsreader-italic) as the primary hero headline reads as taste in isolation but has become the universal AI-startup landing page hero. Set roman, or move to a non-serif display face. Editorial / magazine register may legitimately want this — judge by context."
   },
   {
     "id": "hero-eyebrow-chip",
@@ -333,12 +321,6 @@
     "category": "quality",
     "description": "A clipping container (overflow hidden or clip) wrapping an absolutely-positioned child cuts off tooltips, menus, and popovers that need to escape. Let the overflow be visible, or move the positioned layer out of the clip.",
     "severity": "advisory"
-  },
-  {
-    "id": "design-system-font",
-    "name": "Font outside DESIGN.md",
-    "category": "quality",
-    "description": "A font is used that is not declared in DESIGN.md typography. Use the documented type system or update DESIGN.md if this is an intentional brand addition."
   },
   {
     "id": "design-system-color",

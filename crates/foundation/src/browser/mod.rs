@@ -144,7 +144,7 @@ pub struct BrowserConfig {
     /// `window.__IMPECCABLE_CONFIG__?.disabledValues || []` (only honored in
     /// extension mode, exactly as the JS reads it). `disabled_rules` waives
     /// whole rules; these waive one reported value of one rule, which is how
-    /// a project entry like `overused-font = "geist mono"` reaches the
+    /// a project entry like `design-system-color = "#fff"` reaches the
     /// overlay. Serialized as `disabledValues`.
     #[serde(default, deserialize_with = "de_disabled_values")]
     pub disabled_values: Vec<DisabledValue>,

@@ -22,7 +22,6 @@ import { fileURLToPath } from 'url';
 import { readSourceFiles, readPatterns, stashPerProjectArtifacts, restorePerProjectArtifacts, findBatchFilesWithBareLf } from './lib/utils.js';
 import { syncRootCommands } from './lib/root-commands-sync.mjs';
 import { createTransformer, PROVIDERS } from './lib/transformers/index.js';
-import { hooksJsonFor, buildClaudePluginHooksManifest } from './lib/transformers/hooks.js';
 import { createAllZips, createProviderZip } from './lib/zip.js';
 import { collectPluginVersions } from './lib/validate-plugin-versions.js';
 import { collectPluginManifestFindings } from './lib/validate-plugin-manifest.js';
@@ -35,7 +34,7 @@ import {
 import { stageOpenAIPlugin } from './lib/openai-plugin.js';
 import { stageCursorPlugin } from './lib/cursor-plugin.js';
 import { stageVSCodeExtension } from './lib/vscode-extension.js';
-import { ENGINE_TARGETS, binaryName, main as fetchEngineMain, readEngineVersion } from './fetch-engine.mjs';
+const readEngineVersion = (root) => fs.readFileSync(path.join(root, 'ENGINE_VERSION'), 'utf-8').trim();
 // Sub-page generation is now handled by Astro content collections.
 
 /**
@@ -489,7 +488,7 @@ function validateAskInstructionSites(rootDir) {
 /**
  * Every shipped `impeccable.cmd` must have CRLF line endings: cmd.exe cannot
  * find `call :label` targets in an LF-only batch file (#1098). The build
- * writes CRLF itself (readSkillScripts), so a failure here means that
+ * is expected to write CRLF itself, so a failure here means that
  * guarantee regressed. Checks dist/ (the release zips are packed from it)
  * and, on a release build, the tracked harness dirs and plugin subtrees.
  *
@@ -555,71 +554,6 @@ function mirrorDirContentsSync(src, dest) {
       fs.copyFileSync(srcPath, destPath);
     }
   }
-}
-
-function syncRootHookManifests(rootDir) {
-  const synced = [];
-  for (const config of Object.values(PROVIDERS)) {
-    if (!config.emitHooks) continue;
-    const manifest = hooksJsonFor(config.emitHooks, { configDir: config.configDir });
-    if (!manifest) continue;
-    const rel = config.hooksManifestRel || path.join('hooks', 'hooks.json');
-    const dest = path.join(rootDir, config.configDir, rel);
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.writeFileSync(dest, JSON.stringify(manifest, null, 2) + '\n');
-    synced.push(path.join(config.configDir, rel).split(path.sep).join('/'));
-  }
-  return synced;
-}
-
-function syncRootPluginPayloads(distDir, rootDir) {
-  const synced = [];
-  for (const config of Object.values(PROVIDERS)) {
-    if (!config.pluginPayload) continue;
-    const src = path.join(distDir, config.provider, config.configDir, config.pluginPayload.dest);
-    if (!fs.existsSync(src)) continue;
-    mirrorDirContentsSync(src, path.join(rootDir, config.configDir, config.pluginPayload.dest));
-    synced.push(path.join(config.configDir, config.pluginPayload.dest).split(path.sep).join('/'));
-  }
-  return synced;
-}
-
-/**
- * Every skill copy in dist gets the engine binaries the launcher looks for
- * (`scripts/bin/<os>-<arch>/impeccable[.exe]`), so the release zips are
- * self-contained for installs without egress. Opt-in only
- * (IMPECCABLE_BUNDLE_ENGINE=1 on a release build), and only after the root
- * harness dirs and ./plugin have been synced from dist: those are
- * git-delivered and must stay launcher-only (the binaries are gitignored and
- * the launcher downloads them on first run).
- *
- * Source: skill/scripts/bin/, filled by scripts/fetch-engine.mjs --all. A
- * target that could not be fetched is reported and left out; the launcher
- * covers it at run time.
- */
-async function stageEngineBinaries(rootDir, distDir) {
-  await fetchEngineMain(['--all', '--lenient']);
-  const binRoot = path.join(rootDir, 'skill', 'scripts', 'bin');
-  const present = ENGINE_TARGETS.filter(t => fs.existsSync(path.join(binRoot, t, binaryName(t))));
-  const missing = ENGINE_TARGETS.filter(t => !present.includes(t));
-  if (present.length === 0) {
-    console.warn(`⚠️  No engine binaries for v${readEngineVersion(rootDir)}; zips ship launcher-only (the launcher downloads on first run).`);
-    return;
-  }
-  let copies = 0;
-  for (const { provider, configDir } of Object.values(PROVIDERS)) {
-    const scriptsDir = path.join(distDir, provider, configDir, 'skills', 'impeccable', 'scripts');
-    if (!fs.existsSync(scriptsDir)) continue;
-    for (const target of present) {
-      const src = path.join(binRoot, target, binaryName(target));
-      const dest = path.join(scriptsDir, 'bin', target, binaryName(target));
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.copyFileSync(src, dest);
-      fs.chmodSync(dest, 0o755);
-      copies++;
-    }
-  }
-  console.log(`✓ Staged engine v${readEngineVersion(rootDir)} binaries into dist (${present.join(', ')}; ${copies} copies)${missing.length ? `; missing: ${missing.join(', ')}` : ''}`);
 }
 
 function syncEngineVersionFile(rootDir) {
@@ -799,16 +733,6 @@ async function build() {
       console.log(`📟 Synced provider commands to: ${syncedCommands.join(', ')}`);
     }
 
-    const syncedHooks = syncRootHookManifests(ROOT_DIR);
-    if (syncedHooks.length > 0) {
-      console.log(`🪝 Synced hook manifests to: ${syncedHooks.join(', ')}`);
-    }
-
-    const syncedPlugins = syncRootPluginPayloads(DIST_DIR, ROOT_DIR);
-    if (syncedPlugins.length > 0) {
-      console.log(`🪝 Synced provider plugins to: ${syncedPlugins.join(', ')}`);
-    }
-
     // Remove deprecated skill stubs from local harness dirs. They exist
     // in dist/ so the cleanup script can redirect users, but they should
     // not clutter the repo's own skill directories.
@@ -841,12 +765,12 @@ async function build() {
     const grokPluginManifestDir = path.join(pluginRoot, '.grok-plugin');
     const pluginSkillsDir = path.join(pluginRoot, 'skills');
     const pluginAgentsDir = path.join(pluginRoot, 'agents');
-    const pluginHooksDir = path.join(pluginRoot, 'hooks');
     if (fs.existsSync(pluginManifestDir)) fs.rmSync(pluginManifestDir, { recursive: true });
     if (fs.existsSync(grokPluginManifestDir)) fs.rmSync(grokPluginManifestDir, { recursive: true });
     if (fs.existsSync(pluginSkillsDir)) fs.rmSync(pluginSkillsDir, { recursive: true });
     if (fs.existsSync(pluginAgentsDir)) fs.rmSync(pluginAgentsDir, { recursive: true });
-    if (fs.existsSync(pluginHooksDir)) fs.rmSync(pluginHooksDir, { recursive: true });
+    // Drop the hooks dir an earlier build left behind.
+    fs.rmSync(path.join(pluginRoot, 'hooks'), { recursive: true, force: true });
     // Clean up the short-lived mixed-provider subtree from early OpenAI plugin
     // development. The canonical Codex preview now lives in dist/openai/.
     for (const staleRel of ['.codex-plugin', 'assets']) {
@@ -886,7 +810,7 @@ async function build() {
       homepage: pluginManifest.homepage,
       repository: pluginManifest.repository,
       license: pluginManifest.license || 'MIT',
-      keywords: ['design', 'frontend', 'ui', 'ux', 'skills', 'hooks'],
+      keywords: ['design', 'frontend', 'ui', 'ux', 'skills'],
     };
     fs.mkdirSync(grokPluginManifestDir, { recursive: true });
     fs.writeFileSync(
@@ -904,13 +828,8 @@ async function build() {
       copyDirSync(claudeAgentsSrc, pluginAgentsDir);
     }
 
-    // The claude-code output resolves {{scripts_path}} to a project-relative
-    // path. Inside the plugin cache that path points into the user's project,
-    // so a dual install silently runs the project's older skill copy (issue
-    // #523). Rewrite the copied markdown to the skill-base-dir form.
+    // Plugin copy drops allowed-tools so non-interactive sessions can activate.
     rewritePluginMarkdownTree(pluginSkillsDir);
-    // Agents get the plugin-root variable, not the skill-base-dir token:
-    // a spawned agent never loads SKILL.md, so the token is undefined there.
     rewritePluginMarkdownTree(pluginAgentsDir, rewritePluginAgentMarkdown);
     verifyPluginSkillRewrite(path.join(pluginSkillsDir, 'impeccable', 'SKILL.md'));
     if (fs.existsSync(pluginAgentsDir)) {
@@ -918,17 +837,6 @@ async function build() {
         if (agentFile.endsWith('.md')) verifyPluginAgentRewrite(path.join(pluginAgentsDir, agentFile));
       }
     }
-
-    // Ship the design detector as a plugin-packaged hook. Claude Code and
-    // Grok Build both auto-discover `hooks/hooks.json` at the plugin root
-    // (Grok aliases CLAUDE_PLUGIN_ROOT → GROK_PLUGIN_ROOT), so marketplace /
-    // plugin-install users get PostToolUse + Stop without merging into project
-    // settings (that path remains the CLI's job for project-scoped installs).
-    fs.mkdirSync(pluginHooksDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(pluginHooksDir, 'hooks.json'),
-      JSON.stringify(buildClaudePluginHooksManifest(), null, 2) + '\n',
-    );
 
     console.log('📦 Built Claude Code / Grok Build plugin subtree at ./plugin/');
   } else {
@@ -951,18 +859,6 @@ async function build() {
   // Declarative Marketplace skill bundle: no editor runtime or project hooks.
   // Staged before optional engine bundling to keep the VSIX launcher-only.
   stageVSCodeExtension(ROOT_DIR, DIST_DIR);
-
-  // Release zips ship launcher-only by default: the launcher downloads the
-  // pinned engine on first run. IMPECCABLE_BUNDLE_ENGINE=1 opts in to staging
-  // every fetched target into every dist skill copy for offline installs.
-  // That was the default once and put universal.zip at ~340 MB (five targets
-  // times every provider copy), past the 25 MB Cloudflare Pages file cap that
-  // `impeccable install` downloads through. Staging runs after the root
-  // harness dirs, ./plugin, and the OpenAI plugin were staged from dist, so
-  // git-delivered trees stay launcher-only either way.
-  if (BUILD_OPTIONS.syncRootOutputs && process.env.IMPECCABLE_BUNDLE_ENGINE === '1') {
-    await stageEngineBinaries(ROOT_DIR, DIST_DIR);
-  }
 
   // Assemble universal directory
   assembleUniversal(DIST_DIR);

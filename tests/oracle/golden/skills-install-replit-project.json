@@ -1,6 +1,6 @@
 {
-  "stdout": "Detected harnesses:\n  Replit Agent  <WS>/.replit\n\nInstall target: [1] Detected only (replit)  [2] Customize [1]: Install location: project (<WS>) or global (~)? [project] \nDownloading impeccable skills...\n",
-  "stderr": "Download failed: Local bundle not found: <WS>/no-such-bundle\n",
+  "stdout": "Detected harnesses:\n  Replit Agent  <WS>/.replit\n\nInstall target: [1] Detected only (replit)  [2] Customize [1]: Install location: project (<WS>) or global (~)? [project] \nLoading impeccable skills...\n",
+  "stderr": "Bundle not available: Local bundle not found: <WS>/no-such-bundle\n",
   "exit": 1,
   "signal": null,
   "files": {}

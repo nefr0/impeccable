@@ -1,49 +1,34 @@
 # Impeccable CLI
 
-Detect UI anti-patterns and design quality issues from the command line, and install the Impeccable design skill into your AI coding harness. The detector scans HTML, CSS, JSX, TSX, Vue, and Svelte files for 62 deterministic rules, including AI-generated UI tells, accessibility violations, and general design quality problems.
+> Standalone CLI; the skill does not call it. This fork publishes nothing to npm and downloads no binaries.
 
-The npm package is a small launcher. It runs the `impeccable` engine binary for your platform, installed alongside it as an optional dependency (`@impeccable/cli-<os>-<arch>`), and falls back to a per-user cache or a one-time download when that package is missing.
+Detect UI anti-patterns and design quality issues from the command line. The detector scans HTML, CSS, JSX, TSX, Vue, and Svelte files for 59 deterministic rules, including AI-generated UI tells, accessibility violations, and general design quality problems.
+
+The `cli/` shim runs the `impeccable` engine binary that you build locally.
 
 ## Quick Start
 
 ```bash
-# Install skills into your AI harness (Claude, Cursor, Gemini, etc.)
-npx impeccable install
-
-# Non-interactive install for a specific scope
-npx impeccable install -y --providers=claude,codex --scope=project
-
-# First command to run inside your AI harness
-/impeccable init
-
-# Update skills to the latest version
-npx impeccable update
-
-# Install or update skills without hook manifests
-npx impeccable install --no-hooks
-
-# Link skills from a Git submodule checkout
-npx impeccable link --source=.impeccable --providers=claude,cursor
-
-# List all available commands
-npx impeccable help
+cargo build --release -p impeccable
+export IMPECCABLE_BIN="$PWD/target/release/impeccable"
 
 # Scan files or directories for anti-patterns
-npx impeccable detect src/
+node cli/bin/cli.js detect src/
 
 # Scan a live URL (uses an installed Chrome, Chromium, or Edge)
-npx impeccable detect https://example.com
+node cli/bin/cli.js detect https://example.com
 
 # JSON output for CI/tooling
-npx impeccable detect --json src/
+node cli/bin/cli.js detect --json src/
 
 # GitHub Actions annotations
-npx impeccable detect --github src/
+node cli/bin/cli.js detect --github src/
+
 # Catalog of detector rules (no scan)
-npx impeccable detect --list-rules
+node cli/bin/cli.js detect --list-rules
 ```
 
-`npx impeccable skills <command>` is the legacy namespace and still works.
+To install the skill itself, build it with `bun run build` and copy it from `dist/` (see README.md).
 
 ## What It Detects
 
@@ -52,7 +37,7 @@ npx impeccable detect --list-rules
 - Purple/violet gradients and cyan-on-dark palettes
 - Dark mode with glowing accents, border + border-radius clashes
 
-**Typography Issues**: overused fonts (Inter, Roboto), flat type hierarchy, single font families
+**Typography Issues**: flat type hierarchy, tiny text
 
 **Color & Contrast**: WCAG AA violations, gray text on colored backgrounds, pure black/white
 
@@ -62,7 +47,7 @@ npx impeccable detect --list-rules
 
 **Quality**: tiny body text, cramped padding, long line lengths, small touch targets
 
-62 deterministic detector rules in total. See the full catalog at [impeccable.style/slop](https://impeccable.style/slop).
+59 deterministic detector rules in total. See the full catalog at [impeccable.style/slop](https://impeccable.style/slop).
 
 ## Exit Codes
 
@@ -86,15 +71,13 @@ impeccable detect [options] [file-or-dir-or-url...]
 
 ## Requirements
 
-- Node.js 18.19+ to run `npx impeccable`. The engine itself is a self-contained binary and needs no runtime; the skill installed into your harness calls it directly.
+- Node.js 18.19+ to run the shim. The engine itself is a self-contained binary built locally.
 - For URL scans, an installed Chrome, Chromium, or Edge (set `IMPECCABLE_BROWSER` to point at one).
-- Behind a TLS-inspecting proxy, downloads trust your OS certificate store as well as the bundled Mozilla roots. Set `SSL_CERT_FILE` or `SSL_CERT_DIR` to use a specific CA bundle instead.
-
-Binary lookup order: `IMPECCABLE_BIN`, the platform package, `~/.impeccable/bin/<version>/`, then a download of the pinned version into that cache. Set `IMPECCABLE_BIN` to a local build to skip all of that.
+- Set `IMPECCABLE_BIN` to your local build. The shim never downloads a binary.
 
 ## Part of Impeccable
 
-This CLI is part of [Impeccable](https://impeccable.style), a cross-provider design skill pack for AI-powered development tools. The full suite includes 24 commands for Claude, Cursor, GitHub Copilot, Gemini, Codex, Hermes Agent, Veto, and more.
+The skill is a text-only design pack with 22 commands. This CLI is an optional companion.
 
 ## License
 

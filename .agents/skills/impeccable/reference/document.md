@@ -4,7 +4,7 @@ DESIGN.md follows the [official DESIGN.md format spec](https://raw.githubusercon
 
 ## The frontmatter: token schema
 
-The YAML frontmatter is the machine-readable layer. It's what Stitch's linter validates and what the live panel renders tiles from. Keep it tight; every entry should correspond to a token the project actually uses.
+The YAML frontmatter is the machine-readable layer. It's what Stitch's linter validates. Keep it tight; every entry should correspond to a token the project actually uses.
 
 ```yaml
 ---
@@ -16,7 +16,6 @@ colors:
   # ...one entry per extracted color; key = descriptive slug
 typography:
   display:
-    fontFamily: "Cormorant Garamond, Georgia, serif"
     fontSize: "4.5rem"
     fontWeight: 300
     lineHeight: 1
@@ -44,7 +43,7 @@ Rules that matter:
 
 - **Token refs** use `{path.to.token}` (e.g. `{colors.primary}`, `{rounded.md}`). Components may reference primitives; primitives may not reference each other.
 - **Colors accept any valid CSS color string.** Hex is the recommended default for portability, but preserve an incumbent `rgb()`, `hsl()`, `oklch()`, wide-gamut, or mixed-color value when it is the project's normative source. Never split the source of truth without explicit reason.
-- **Component sub-tokens** are limited to 8 props: `backgroundColor`, `textColor`, `typography`, `rounded`, `padding`, `size`, `height`, `width`. Shadows, motion, focus rings, backdrop-filter: none of those fit. Carry them in the sidecar (Step 4b).
+- **Component sub-tokens** are limited to 8 props: `backgroundColor`, `textColor`, `typography`, `rounded`, `padding`, `size`, `height`, `width`. Shadows, motion, focus rings, backdrop-filter: none of those fit. Describe them in prose in the body sections instead.
 - **Scale keys are open-ended.** Use whatever names the project already uses (`oxblood-deep`, `surface-container-low`). Don't rename to Material defaults.
 - **Variants are naming convention, not schema.** `button-primary` / `button-primary-hover` / `button-primary-active` as sibling keys.
 
@@ -83,8 +82,8 @@ Decide by scanning first (Scan mode Step 1). If the scan finds no tokens, no com
 
 Search the codebase in priority order:
 
-1. **CSS custom properties**: grep for `--color-`, `--font-`, `--spacing-`, `--radius-`, `--shadow-`, `--ease-`, `--duration-` declarations in CSS files (usually `src/styles/`, `public/css/`, `app/globals.css`, etc.). Record name, value, and the file it's defined in.
-2. **Tailwind config**: if `tailwind.config.{js,ts,mjs}` exists, read the `theme.extend` block for colors, fontFamily, spacing, borderRadius, boxShadow.
+1. **CSS custom properties**: grep for `--color-`, `--spacing-`, `--radius-`, `--shadow-`, `--ease-`, `--duration-` declarations in CSS files (usually `src/styles/`, `public/css/`, `app/globals.css`, etc.). Record name, value, and the file it's defined in.
+2. **Tailwind config**: if `tailwind.config.{js,ts,mjs}` exists, read the `theme.extend` block for colors, spacing, borderRadius, boxShadow.
 3. **CSS-in-JS theme files**: styled-components, emotion, vanilla-extract, stitches; look for `theme.ts`, `tokens.ts`, or equivalent.
 4. **Design token files**: `tokens.json`, `design-tokens.json`, Style Dictionary output, W3C token community group format.
 5. **Component library**: scan the main button, card, input, navigation, dialog components. Note their variant APIs and default styles.
@@ -96,7 +95,7 @@ Search the codebase in priority order:
 Build a structured draft from the discovered tokens. For each token class:
 
 - **Colors**: Group into Primary / Secondary / Tertiary / Neutral (the Material-derived roles Stitch uses). If the project only has one accent, express it as Primary + Neutral; omit Secondary and Tertiary rather than inventing them.
-- **Typography**: Map observed sizes and weights to the Material hierarchy (display / headline / title / body / label). Note font-family stacks and the scale ratio.
+- **Typography**: Map observed sizes and weights to the Material hierarchy (display / headline / title / body / label). Note the scale ratio.
 - **Elevation**: Catalogue the shadow vocabulary. If the project is flat and uses tonal layering instead, that's a valid answer; state it explicitly.
 - **Components**: For each common component (button, card, input, chip, list item, tooltip, nav), extract shape (radius), color assignment, hover/focus treatment, internal padding.
 - **Layout + spacing**: Extract grid, container, breakpoint, rhythm, and density behavior into Layout.
@@ -104,12 +103,12 @@ Build a structured draft from the discovered tokens. For each token class:
 
 ### Step 2b: Stage the frontmatter
 
-From the auto-extracted tokens, draft the YAML frontmatter now (you'll write it at the top of DESIGN.md in Step 4). This is the machine-readable layer: what the live panel and Stitch's linter consume.
+From the auto-extracted tokens, draft the YAML frontmatter now (you'll write it at the top of DESIGN.md in Step 4). This is the machine-readable layer: what Stitch's linter consumes.
 
 - **Colors**: one entry per extracted color. Key = descriptive slug (`oxblood-deep`, `editorial-magenta`, not `blue-800`). Value = whichever format the project treats as canonical (OKLCH or hex; see the frontmatter rules above). Don't split the source of truth: one format in the frontmatter, don't redefine the same token in prose with a different value.
-- **Typography**: one entry per role (`display`, `headline`, `title`, `body`, `label`). Typography is an object; include only the props that are real for the project (`fontFamily`, `fontSize`, `fontWeight`, `lineHeight`, `letterSpacing`, `fontFeature`, `fontVariation`).
+- **Typography**: one entry per role (`display`, `headline`, `title`, `body`, `label`). Typography is an object; include only the props that are real for the project (`fontSize`, `fontWeight`, `lineHeight`, `letterSpacing`, `fontFeature`, `fontVariation`).
 - **Rounded / Spacing**: whatever scale steps the project actually uses, keyed by whatever scale name the project uses (`sm` / `md` / `lg`, or `surface-sm`, or numeric steps).
-- **Components**: one entry per variant (`button-primary`, `button-primary-hover`, `button-ghost`). Reference primitives via `{colors.X}`, `{rounded.Y}`. If a variant needs a property Stitch's 8-prop set doesn't cover (shadow, focus ring, backdrop-filter), carry the full snippet in the sidecar instead.
+- **Components**: one entry per variant (`button-primary`, `button-primary-hover`, `button-ghost`). Reference primitives via `{colors.X}`, `{rounded.Y}`. If a variant needs a property Stitch's 8-prop set doesn't cover (shadow, focus ring, backdrop-filter), describe it in the Components prose instead.
 
 Skip anything the project doesn't have. Empty scale keys or fabricated tokens pollute the spec.
 
@@ -167,11 +166,7 @@ colors:
 
 ## Typography
 
-**Display Font:** [Family] (with [fallback])
-**Body Font:** [Family] (with [fallback])
-**Label/Mono Font:** [Family, if distinct]
-
-**Character:** [1-2 sentence personality description of the pairing.]
+**Character:** [1-2 sentence personality description of the type voice.]
 
 ### Hierarchy
 - **Display** ([weight], [size/clamp], [line-height]): [Purpose; where it appears.]
@@ -248,102 +243,10 @@ Concrete visual guardrails grounded in the incumbent implementation or the user'
 - **Don't** [...]
 ```
 
-### Step 4b: Write .impeccable/design.json sidecar (extensions only)
-
-The frontmatter owns token primitives (colors, typography, rounded, spacing, components). The sidecar at `.impeccable/design.json` carries **what Stitch's schema can't hold**: tonal ramps per color, shadow/elevation tokens, motion tokens, breakpoints, full component HTML/CSS snippets (the panel renders these into a shadow DOM), and narrative (north star, rules, do's/don'ts). It extends the frontmatter, it doesn't duplicate it.
-
-Regenerate the sidecar whenever you regenerate root `DESIGN.md`. If the user only asks to refresh the sidecar (e.g., from the live panel's stale-hint), preserve `DESIGN.md` and write only `.impeccable/design.json`.
-
-#### Schema
-
-```json
-{
-  "schemaVersion": 2,
-  "generatedAt": "ISO-8601 string",
-  "title": "Design System: [Project Title]",
-  "extensions": {
-    "colorMeta": {
-      "primary":        { "role": "primary",  "displayName": "Editorial Magenta", "canonical": "oklch(60% 0.25 350)", "tonalRamp": ["...", "...", "..."] },
-      "cool-paper": { "role": "neutral",  "displayName": "Cool Paper",    "canonical": "oklch(96% 0.005 230)", "tonalRamp": ["...", "...", "..."] }
-    },
-    "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Hero headlines only." }
-    },
-    "shadows": [
-      { "name": "ambient-low", "value": "0 4px 24px rgba(0,0,0,0.12)", "purpose": "Diffuse hover glow under accent elements." }
-    ],
-    "motion": [
-      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Default easing for state transitions." }
-    ],
-    "breakpoints": [
-      { "name": "sm", "value": "640px" }
-    ]
-  },
-  "components": [
-    {
-      "name": "Primary Button",
-      "kind": "button | input | nav | chip | card | custom",
-      "refersTo": "button-primary",
-      "description": "One-line what and when.",
-      "html": "<button class=\"ds-btn-primary\">SAVE CHANGES</button>",
-      "css": ".ds-btn-primary { background: #191c1d; color: #fff; padding: 16px 48px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 500; border: none; border-radius: 0; transition: background 0.2s, transform 0.2s; } .ds-btn-primary:hover { background: oklch(60% 0.25 350); transform: translateY(-2px); }"
-    }
-  ],
-  "narrative": {
-    "northStar": "The Editorial Sanctuary",
-    "overview": "2-3 paragraphs of the philosophy, pulled from DESIGN.md Overview section.",
-    "keyCharacteristics": ["...", "..."],
-    "rules": [{ "name": "The One Voice Rule", "body": "...", "section": "colors|typography|elevation" }],
-    "dos":   ["Do use ..."],
-    "donts": ["Don't use ..."]
-  }
-}
-```
-
-**What changed from schemaVersion 1.** The old sidecar carried token primitive arrays (`tokens.colors[]`, `tokens.typography[]`, etc.). Those values now live in the frontmatter. The sidecar only carries metadata that can't live in the frontmatter (tonal ramps, canonical OKLCH when the hex is an approximation, display names, role hints), keyed by the frontmatter token name (`colorMeta.<token-name>`, `typographyMeta.<token-name>`). Components still carry full HTML/CSS because Stitch's 8-prop set can't hold them.
-
-#### Component translation rules
-
-The `html` and `css` fields must be **self-contained, drop-in snippets** that render correctly when injected into a shadow DOM. The panel applies them directly: no post-processing, no framework runtime.
-
-1. **Tailwind expansion.** If the source uses Tailwind (className="bg-primary text-white rounded-lg px-6 py-3"), expand every utility to literal CSS properties in the `css` string. Do **not** reference Tailwind classes; do **not** assume a Tailwind CSS bundle is loaded. Each component is self-contained.
-2. **Token resolution.** If the project exposes tokens as CSS custom properties on `:root` (e.g. `--color-primary`, `--radius-md`), reference them via `var(--color-primary)`; they inherit through the shadow DOM and stay live-bound. If tokens live only in JS theme objects (styled-components, CSS-in-JS), resolve to literal values at generation time.
-3. **Icons.** Inline as SVG. Do not reference Lucide/Heroicons packages, icon fonts, or `<img src="...">`. A typical icon is 16-24px; copy the SVG path data directly.
-4. **States.** Include `:hover`, `:focus-visible`, and (if meaningful) `:active` rules inline. A static default-only snapshot makes the panel feel dead. Hover + focus rules in the CSS make it feel alive.
-5. **Reset bloat.** Extract only the component's *distinctive* CSS (background, color, padding, border-radius, typography, transition). Skip universal resets (`box-sizing: border-box`, `line-height: inherit`, `-webkit-font-smoothing`). The panel already has a neutral canvas; don't re-ship resets.
-6. **Scoped class names.** Prefix every class with `ds-` (e.g. `ds-btn-primary`, `ds-input-search`) so component CSS doesn't collide with other components' CSS in the same shadow DOM.
-
-#### What to include
-
-Aim for a tight set of **5-10 components** that best represent the visual system:
-
-- **Canonical primitives (always include if the project has them):** button (each variant as a separate component entry), input/text field, navigation, chip/tag, card.
-- **Signature components (include if distinctive):** the recurring custom patterns that actually define the implemented system.
-- **Skip the rest.** Utility components, form building blocks, wrapper layouts: not worth documenting unless visually distinctive.
-
-If the project has **no component library yet** (bare landing page, new project), synthesize canonical primitives from the tokens using best-practice defaults consistent with the DESIGN.md's rules. Every `.impeccable/design.json` has *something* to render, even on day zero.
-
-#### Tonal ramps
-
-For each color token, generate an 8-step `tonalRamp` array: dark to light, same hue, chroma reduced near white and black, stepped lightness from ~15% to ~95%. The panel renders this as a strip under the swatch. If the project already defines a tonal scale (Material `surface-container-low` family, Tailwind-style `blue-50..blue-900`), use those values. Otherwise synthesize in OKLCH.
-
-#### Narrative mapping
-
-Pull directly from the DESIGN.md you just wrote:
-
-- `narrative.northStar` → the `**Creative North Star: "..."**` line from Overview
-- `narrative.overview` → the philosophy paragraphs from Overview
-- `narrative.keyCharacteristics` → the bulleted `**Key Characteristics:**` list
-- `narrative.rules` → every `**The [Name] Rule.** [body]` across all sections, tagged with `section`
-- `narrative.dos` / `narrative.donts` → the bullet lists from Do's and Don'ts verbatim
-
-Do not reword. The panel shows these as secondary collapsible context; the same voice that's in the Markdown carries through.
-
 ### Step 5: Confirm and refine
 
 1. Show the user the full DESIGN.md you wrote. Briefly highlight the non-obvious creative choices (descriptive color names, atmosphere language, named rules).
-2. Mention that `.impeccable/design.json` was also written alongside; the live panel will now render this project's actual button/input/nav primitives instead of generic approximations.
-3. Offer to refine any section: "Want me to revise a section, add component patterns I missed, or adjust the atmosphere language?"
+2. Offer to refine any section: "Want me to revise a section, add component patterns I missed, or adjust the atmosphere language?"
 
 Your own write is the freshest source; subsequent commands in this session don't need a reload.
 
@@ -373,19 +276,19 @@ Per-section guidance in seed mode:
 
 - **Overview**: the chosen design thesis, layout behavior, material character, imagery stance, motion grammar, and reusable signature. Keep the selected first-surface expression in its surface brief; do not promote its composition into the global world.
 - **Colors**: the selected palette strategy and roles. Include values only when the user, an existing asset, or new-work's exploration established them; otherwise mark them `[to be resolved during implementation]`.
-- **Typography**: the selected type character and role relationship. Include font names only when established; otherwise mark the pairing `[to be resolved during implementation]`.
+- **Typography**: the selected type character and role relationship.
 - **Layout**: the selected spatial grammar and responsive behavior, without pretending exact measurements are settled.
 - **Elevation & Depth**: the selected material and depth behavior, stated as an invariant rather than inferred from a generic preset.
 - **Shapes**: the selected form and corner language.
 - **Components**: omit entirely; no components exist yet.
 - **Do's and Don'ts**: record the durable guardrails confirmed during the world choice, not task-local refusals.
 
-Seed mode writes a minimal frontmatter with `name` and `description` only; no colors, typography, rounded, spacing, or components yet. Real tokens land on the next Scan-mode run. Skip the `.impeccable/design.json` sidecar in seed mode for the same reason: nothing to render.
+Seed mode writes a minimal frontmatter with `name` and `description` only; no colors, typography, rounded, spacing, or components yet. Real tokens land on the next Scan-mode run.
 
 ### Step 3: Confirm
 
 1. Show the seed DESIGN.md. Call out that it is a seed (the marker is the literal commitment).
-2. Tell the user: "Re-run `$impeccable document` once you have some code. That pass will extract real tokens and generate the sidecar."
+2. Tell the user: "Re-run `$impeccable document` once you have some code. That pass will extract real tokens."
 
 Your own write is the freshest source; no reload needed.
 
@@ -413,4 +316,4 @@ Your own write is the freshest source; no reload needed.
 - Don't replace canonical sections with near-synonyms. Put layout and responsive behavior in `Layout`; put motion with the affected world or component.
 - Don't rename sections even slightly. "Colors" not "Color Palette & Roles". "Typography" not "Typography Rules". Tooling parsing depends on exact headers.
 - Don't duplicate token values between frontmatter and prose. If a color is in `colors.primary` as hex, the prose can name it and describe its role but should not reassert a different hex. The frontmatter is normative.
-- Don't invent frontmatter token groups outside Stitch's schema (no `motion:`, `breakpoints:`, `shadows:` at the top level). Stitch's Zod schema only accepts `colors`, `typography`, `rounded`, `spacing`, `components`. Anything else belongs in the sidecar's `extensions`.
+- Don't invent frontmatter token groups outside Stitch's schema (no `motion:`, `breakpoints:`, `shadows:` at the top level). Stitch's Zod schema only accepts `colors`, `typography`, `rounded`, `spacing`, `components`. Anything else belongs in the prose sections.

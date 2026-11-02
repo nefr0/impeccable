@@ -2,26 +2,23 @@
 
 ## Architecture (v3.0+)
 
-There is **one** user-invocable skill, `impeccable`, with **24 commands** underneath it. Users type `/impeccable polish`, `/impeccable audit`, etc. The skill is defined in `skill/`:
+There is **one** user-invocable skill, `impeccable`, with **22 commands** underneath it. Users type `/impeccable polish`, `/impeccable audit`, etc. The skill is defined in `skill/`:
 
 - `SKILL.src.md` — frontmatter (with the auto-trigger-optimized description and the `allowed-tools` list), shared design laws, and the **Commands** router table. Provider `SKILL.md` files are generated from this source.
 - `reference/` — one `<command>.md` per command (`audit.md`, `polish.md`, `critique.md`, etc.), the shared playbooks the router loads outside the command table (`new-work.md`, `craft-floor.md`, `operate.md`, `routing.md`), and the native platform references (`ios.md`, `android.md`). When a sub-command is matched, the router loads its reference file.
 - `scripts/command-metadata.json` — single source of truth for each command's description, argument hint, and (eventually) category. Both the build and the engine's `pin` verb read from this.
-- `scripts/impeccable` (+ `impeccable.cmd`, `VERSION`): the launcher every skill verb goes through. See **Engine binary** below.
-- `impeccable pin` — an engine verb that creates/removes lightweight redirect shims so users can have `/audit` as a standalone shortcut that delegates to `/impeccable audit`.
+- `scripts/` holds engine assets only; the skill does not call them.
 
-### Engine binary (the runtime behind every verb)
+### Engine (optional, not used by the skill)
 
-The skill has no runtime of its own. Every command the skill text runs is `{{scripts_path}}/impeccable <verb>` (Setup step 1 says `impeccable context`; `impeccable.cmd` is the Windows twin for shells without `sh`). `skill/scripts/impeccable` is a POSIX `sh` launcher: it execs `$IMPECCABLE_BIN` if set, else the sibling `scripts/bin/<os>-<arch>/impeccable[.exe]` (skipped with a warning when its `engine-probe` version differs from `VERSION`), else `~/.impeccable/bin/impeccable`, else the version-pinned user cache `~/.impeccable/bin/<VERSION>/`, else `impeccable` on PATH, and as a last resort downloads the pinned version into that cache. It exports `IMPECCABLE_SKILL_DIR` (the skill dir, for `reference/*.md` and `command-metadata.json`) and `IMPECCABLE_SELF` (how the binary spells itself in the commands it prints).
+The skill is text only: no scripts, no hooks, no engine calls, no downloads. The agent reads PRODUCT.md, DESIGN.md, surface briefs and platform references itself. `skill/scripts/` holds engine assets and stays in the repo but is not shipped as a runtime for the skill.
 
-The binary is built from **this repo's Cargo workspace** (`Cargo.toml` at the root, `crates/*`; `cargo build --release -p impeccable`). Its verbs are the old script basenames (`context`, `doctor`, `pin`, `hook`, `hook-before-edit`, `live*`, `detect`, ...) with two aliases: `signals` for context-signals and `hooks` for hook-admin. Its observable behavior is specified in `docs/CLI-CONTRACT.md` and pinned by `tests/oracle/`. **Read `docs/ENGINE.md` before touching `crates/`**: it maps the crates and the browser-bundle flow.
+The engine is a standalone CLI built from this repo's Cargo workspace (`Cargo.toml`, `crates/*`): `cargo build --release -p impeccable`, output `target/release/impeccable`. It is never downloaded. Its behavior is specified in `docs/CLI-CONTRACT.md` and pinned by `tests/oracle/`. **Read `docs/ENGINE.md` before touching `crates/`**.
 
-- **The rule engine is in the workspace.** Every `check_*` / `scan_*`, the browser rule adapters and the visual-contrast decisions live in `crates/core`, Apache-2.0 like everything else; `crates/foundation` holds what they are written against (JS semantics, color, the registry, the `Dom` trait, the plain-data input and output types) and `crates/core` re-exports it, so consumers name one crate. `crates/wasm` compiles the same source to WebAssembly for the extension, the live overlay and the site, and `cargo xtask bundle` builds those artifacts. There is no build-time download and no exact toolchain pin: `cargo build --release -p impeccable` works offline on stable.
-- **`ENGINE_VERSION`** (repo root) pins the engine release (`engine-v<X>` on this repo's GitHub Releases, built by `.github/workflows/release-engine.yml` when `bun run release:engine` pushes the tag). The build copies it to `skill/scripts/VERSION`, which the launcher reads to name the download and the cache dir; `cli/bin/cli.js` reads the same version from `package.json`'s `optionalDependencies`. Bumping it is a release-time decision, like the other manifest versions.
-- **Binaries are never tracked.** `skill/scripts/bin/` and `**/skills/impeccable/scripts/bin/` are gitignored, so the tracked provider dirs and `plugin/` ship launcher-only and users get the binary on first run. `bun run build:release` produces launcher-only zips by default; `IMPECCABLE_BUNDLE_ENGINE=1 bun run build:release` fetches every target (`scripts/fetch-engine.mjs --all --lenient`) and stages `bin/<os-arch>/` into the dist skill copies **after** the root harness dirs and `plugin/` were synced, so `dist/universal.zip` is self-contained for offline installs while git stays clean. Bundling is opt-in because five targets in every provider copy put `universal.zip` near 340 MB, past the 25 MB Cloudflare Pages file cap that `impeccable install` downloads through.
-- **Tests get a binary** from `IMPECCABLE_BIN`, then `skill/scripts/bin/<os-arch>/` (`bun run fetch:engine`; `IMPECCABLE_BIN=<local build> bun run fetch:engine` copies a local build there), then `target/release/impeccable` from a plain `cargo build --release -p impeccable`. `tests/lib/engine-bin.mjs` is the one resolver; suites that need the binary skip cleanly without it.
-- **The oracle is the behavior gate.** `tests/oracle/` holds goldens recorded from the JS scripts before they left the tree, plus reviewed deltas in `DELTAS.md`; `tests/oracle.test.mjs` replays them against the binary in `bun run test`. New cases are recorded from the binary (`record.mjs --bin`) and reviewed by hand. `tests/oracle/vectors/calls/` is the frozen function-level snapshot; it cannot be regenerated.
-- **What stays JavaScript here:** the in-page live-mode JS (`skill/scripts/live-browser*.js`, `modern-screenshot.umd.js`), the build and test tooling, the extension shell, and the npm shim.
+- Tests get a binary from `IMPECCABLE_BIN`, then `target/release/impeccable` from a local build. `tests/lib/engine-bin.mjs` is the one resolver; suites that need the binary skip cleanly without it.
+- Binaries are never tracked and never bundled into `dist/`.
+- `tests/oracle/` goldens are the behavior gate for the engine; review changes by hand.
+- Removed in this fork: engine download, `release-engine`, npm platform packages, `fetch:engine`, hooks, live mode.
 
 **Do not add standalone skills** unless there's a strong reason. The consolidation was deliberate: the `/` menu pollution problem is real and gets worse as users install more plugins.
 
@@ -61,9 +58,11 @@ PRODUCT.md carries a `## Platform` section with a bare value (`web` / `ios` / `a
 
 Where a command's native guidance diverges too much to share a file, it gets a **native variant**: `reference/<command>.native.md`, listed in SKILL.md's Commands table and routed **instead of** the web file when `setup.platform` is native (Setup step 2). One variant covers ios, android, and adaptive; per-OS specifics stay in the platform refs, which Setup loads regardless. Variants today: `audit.native.md`, `adapt.native.md` (their web files carry a one-line web-only guard that redirects stray native readers). `audit.native.md` mirrors `audit.md`'s report skeleton; change the skeleton in both together. Commands whose divergence the platform refs already cover (`animate`, `layout`) carry nothing extra; don't add in-file translation notes, they make native runs pay for web content.
 
-**Live mode, `impeccable detect`, and the design hook are web-only.** They operate on a browser / HTML rules, so SKILL.md's routing skips live and `impeccable detect` for any native (`ios` / `android` / `adaptive`) project, and the `hook` and `hook-before-edit` verbs skip their scan when PRODUCT.md declares a native platform — a React Native project is made of exactly the `.tsx` / `.ts` / `.js` files the hook watches.
+**Native platforms.** For `ios` / `android` / `adaptive` projects the skill routes to the native references and native variants; web-only checks do not apply. (Live mode, hooks and the detector are not part of the skill in this fork.)
 
 ### Artifact staleness and the doctor pass
+
+Engine-only in this fork: the skill no longer calls `context` or `doctor`; the agent reads PRODUCT.md and DESIGN.md itself. This section documents the standalone engine.
 
 Impeccable writes files into user projects, so a released version has to cope with artifacts an older one wrote. Three kinds of drift travel under "out of date" and they are handled separately:
 
@@ -92,8 +91,8 @@ As of v4 the repo holds only the open-source product layer: the skill, CLI, exte
 
 Consequences here:
 
-- `impeccable concept-seed` has no local catalog. It resolves data via `IMPECCABLE_CATALOG_DIR` (private repo, evals, tests), then the roll API at impeccable.style, then a degraded promotion-only seed. Oracle cases run against `tests/fixtures/concept-catalog/`.
-- The choice-ping telemetry (`--chosen`) honors `DO_NOT_TRACK` and `IMPECCABLE_NO_TELEMETRY` and only fires for API-dealt rolls. Every roll and choice request carries `X-Impeccable-Client: impeccable/<version>[ <channel>]`; tests and CI set `IMPECCABLE_TELEMETRY_CHANNEL=test` so their traffic is tagged (keep it that way for anything new that can reach the API). Decision-page cards declare `kind` (and `catalogId` on challengers), which `serve-question --start/--update` enforce; the page sends the ping itself (`source: "picker"`, `kindSource: explicit|inferred`) for every resolved round, re-rolls included (`kind: "reroll"`), and marks the round in `.impeccable/questions/seeds/` so the agent's `--kind` rerun prints `choice already recorded`; `crates/context/src/telemetry.rs` holds the rules. Everything under `.impeccable/questions/` is runtime state that must never be committed (a committed roll record ties telemetry to a repository): every write there keeps a self-ignoring `.impeccable/questions/.gitignore` in place (`impeccable_common::git::ensure_dir_ignored`); use the same helper for any new runtime file that holds the seed key or a dealt hand. Committed files never hold the raw seed key: concept-seed prints a `SEED REFERENCE` (`seed:` + 16 hex of SHA-256 of `impeccable-seed:` + a per-user salt from `~/.impeccable/seed-salt` + key; `impeccable_common::seed`) for the surface brief, and `--from` resolves it through the local ledger; new keys are 128 CSPRNG bits. A `.gitignore` cannot untrack files users already committed, so rolls warn once (`tracked_runtime_notice`) and write the roll record to `roll.local.json` while `roll.json` is tracked. Ledger updates go through `telemetry::Ledger`, which locks per file; the page claims a round as `pending` and the agent's rerun waits for it, both sending the round's `pingId`. Tests that touch references pin `IMPECCABLE_SEED_SALT`. Opt-out (`DO_NOT_TRACK` / `IMPECCABLE_NO_TELEMETRY` non-empty and not `0`/`false`, or `"telemetry": false` from `impeccable telemetry off` in `~/.impeccable/config.json` or a project config) still rolls, sends `X-Impeccable-Telemetry: off`, and sends and stores nothing telemetry-only.
+- `impeccable concept-seed` is engine-only; the skill does not call it.
+- Telemetry is not part of the skill in this fork; the skill makes no network requests.
 - Site copy, changelog, theme, and count validation for site pages happen in impeccable-site; this repo's `validateProse` scans only the READMEs.
 - The release script reads the changelog from `../impeccable-site/site/pages/changelog.astro` when releasing from here.
 - Never add catalog data files back to this repo; the catalog is the paid-service moat.
@@ -119,7 +118,6 @@ bun run build            # Build dist/ provider output without syncing root harn
 bun run build:release    # Build dist/ provider output, sync root harness dirs + plugin/, stage engine binaries into dist zips
 bun run rebuild          # Clean and rebuild without root harness sync
 bun run rebuild:release  # Clean and rebuild with root harness sync
-bun run fetch:engine     # Download the pinned engine binary for this machine into skill/scripts/bin/
 ```
 
 The skill's `scripts/` payload is copied verbatim to every provider (launcher with its executable bit, `impeccable.cmd`, `VERSION`, `command-metadata.json`, page JS); nothing under `skill/scripts/bin/` is read as source. The in-page detector bundle and the extension's detector pieces are produced by `cargo xtask bundle`, which `bun run build:extension` runs; the page JS and the bundling itself live in the `impeccable-bundle` library crate (`crates/bundle`) so a downstream rule pack can build the same artifacts for its own wasm module.
@@ -167,7 +165,7 @@ bun run test:plugin-e2e       # Just the plugin loader E2E (also part of the def
 bun run test:cleanup          # Kill live servers a previous run of THIS checkout left behind
 ```
 
-Unit tests (build orchestration, transformers, validators) run via `bun test`. Everything that spawns the engine binary (`tests/oracle.test.mjs`, `tests/framework-fixtures.test.mjs`) runs via `node --test`; both skip cleanly when no binary is found (`bun run fetch:engine` or `IMPECCABLE_BIN`). The `test` script handles this split automatically. Runtime unit and integration tests live under `crates/` and run with `cargo test --workspace` (about 10 minutes, mostly the Chrome-driven `impeccable-browser` tests; `bun run test:rust-changed` runs only the crates a change reaches, see AGENTS.md); the oracle goldens pin observable verb behavior across the same workspace.
+Unit tests (build orchestration, transformers, validators) run via `bun test`. Everything that spawns the engine binary (`tests/oracle.test.mjs`, `tests/framework-fixtures.test.mjs`) runs via `node --test`; both skip cleanly when no binary is found (set `IMPECCABLE_BIN` to a local build). The `test` script handles this split automatically. Runtime unit and integration tests live under `crates/` and run with `cargo test --workspace` (about 10 minutes, mostly the Chrome-driven `impeccable-browser` tests; `bun run test:rust-changed` runs only the crates a change reaches, see AGENTS.md); the oracle goldens pin observable verb behavior across the same workspace.
 
 ### Live servers must not outlive their test process
 
@@ -254,16 +252,14 @@ IMPECCABLE_SKILL_BEHAVIOR_VERBOSE=1 bun run test:skill-behavior    # dump per-sc
 
 ## CLI
 
-`cli/` is the npm package `impeccable`, now a thin shim: `cli/bin/cli.js` locates the engine binary (`IMPECCABLE_BIN`, then the `@impeccable/cli-<os>-<arch>` optional dependency pinned at `ENGINE_VERSION`, then `~/.impeccable/bin/<version>/`, then a checksum-verified download into that cache) and execs it with argv. The verbs users see (`detect`, `ignores`, `install`, `update`, `check`, `link`, `help`, the legacy `skills` namespace) are the binary's. `cli/platform-packages/<os>-<arch>/package.json` are the templates the engine release publishes; the version pinned in `package.json` `optionalDependencies` must equal `ENGINE_VERSION`.
+`cli/` is a standalone CLI shim for the optional engine (`detect`, `ignores`, `check`, `help`). The skill does not call it. It runs `IMPECCABLE_BIN` or a local build (`cargo build --release -p impeccable`, output `target/release/impeccable`); it never downloads a binary. Skill-install verbs (`install`, `update`, `link`) that fetch bundles from the network are removed in this fork.
 
 ```bash
-npx impeccable detect [file-or-dir-or-url...]   # detect anti-patterns
-npx impeccable detect --json src/               # JSON output
-npx impeccable install                          # install skills
-npx impeccable --help                           # show help
+IMPECCABLE_BIN=target/release/impeccable node cli/bin/cli.js detect src/   # detect anti-patterns
+IMPECCABLE_BIN=target/release/impeccable node cli/bin/cli.js detect --json src/
 ```
 
-The package no longer exports a JS detector API (`main` / `exports` are gone); the in-page bundle for the extension and site is built from this workspace by `cargo xtask bundle`.
+The package exports no JS detector API; the in-page bundle for the extension is built from this workspace by `cargo xtask bundle`.
 
 ## Versioning
 
@@ -272,7 +268,7 @@ The package no longer exports a JS detector API (`main` / `exports` are gone); t
 The skill and the npm CLI share one version; the Chrome extension and the engine pin are versioned on their own. Bump only what changed, except that the skill and the CLI always move together:
 
 **Engine pin** (`ENGINE_VERSION`, root):
-- The engine release the launcher downloads and the npm shim's `optionalDependencies` pin. Bump it when a new engine release is published; keep `package.json` `optionalDependencies` at the same version, run `bun run build` (it rewrites `skill/scripts/VERSION`), and run `node scripts/check-engine-release.mjs --record` (it rewrites `skill/scripts/engine-checksums.txt`, the digests every engine download is verified against; CI fails until they match the release). A skill release that needs the new engine bumps this together with the skill version.
+- Informational in this fork: nothing downloads the engine, so there is no release to pin against. The engine is optional and built locally.
 
 **CLI** (npm package):
 - `package.json` → `version`, always equal to the skill version in `.claude-plugin/plugin.json`. One number for users to read off npm, the plugin and the changelog: the two drifted to 4.1.0 against 4.5.1 in 2026-10 and npm kept serving an engine seven releases old. `validatePluginVersions` fails the build when they disagree.
@@ -307,7 +303,7 @@ Workflow for any component:
 2. Add a changelog entry to `site/pages/changelog.astro` (see **Website changelog** above for placement and tone). Skill entries use a bare `vX.Y.Z` label; CLI and extension entries use the prefixed forms `CLI vX.Y.Z` and `Extension vX.Y.Z`. The release script extracts notes by matching this label, so the prefix matters.
 3. Commit and push to `main`.
 4. Run `bun run release:<skill|cli|ext>`. Preview first with `node scripts/release.mjs <component> --dry-run`. A skill release is always followed by the CLI release at the same version (its changelog entry uses the `CLI vX.Y.Z` label) and `npm publish`.
-5. Skill only: `npx impeccable install` / `update` serve the version in impeccable-site's `published-skill.json`, a signed pointer that does not follow the release by itself (site `docs/PUBLISHED-SKILL.md`). On a branch from site main, run `bun run skill:publish-pointer <version>` (it verifies the release signature and checksum), commit the pointer, and merge; the main deploy then serves it. Redeploying without moving the pointer republishes the old version. The release script warns when `impeccable.style/api/version` still lags.
+5. Skill only: nothing is downloaded from a site pointer in this fork. Users copy the built skill from `dist/` (see README.md).
 
 The script refuses to run if: the working tree is dirty, HEAD is ahead of origin, the tag already exists, the matching changelog entry is missing, or (for skill/extension) `bun run build:release` / `bun run build:extension` produces uncommitted changes — meaning the harness output dirs or `extension/detector/` files weren't refreshed before the bump was committed.
 
@@ -315,17 +311,9 @@ Skill releases attach `dist/universal.zip`. Extension releases run `bun run buil
 
 If you need to fix release notes after the fact (typo, missing thank-you, formatting bug): `gh release edit <tag> --notes-file <md>`. The release script's `htmlToMarkdown` function is the cleanest source for regenerating notes from the changelog.
 
-### Release order is mechanically enforced (triage decision D4)
+### Engine releases (removed in this fork)
 
-The skill launcher, the npm shim (`cli/bin/cli.js`), and `impeccable install` all resolve the engine binary for the pinned `ENGINE_VERSION`. Nothing they do works until the engine release exists first. **The order is: publish the engine release, then the platform packages, then release/merge the skill (or CLI):**
-
-1. Publish engine `engine-v<ENGINE_VERSION>`: `bun run release:engine` tags and pushes; `release-engine.yml` builds the five `impeccable-<os>-<arch>[.exe]` binaries plus a `.sha256` beside each and publishes the release on this repo. The whole workspace builds from source, so nothing has to ship ahead of it.
-2. Publish the five `@impeccable/cli-<os>-<arch>@<ENGINE_VERSION>` npm platform packages.
-3. Only then tag/publish the skill or CLI release, and only then merge a branch that bumps `ENGINE_VERSION` (the `sync-generated-output.yml` workflow rewrites provider dirs on merge to `main`).
-
-`scripts/check-engine-release.mjs` verifies step 1 and 2 for the pinned version (ranged-GET each release asset, registry-probe each npm package, compare `skill/scripts/engine-checksums.txt` with each published `.sha256`; honors `IMPECCABLE_DOWNLOAD_BASE`). It exits non-zero and names exactly which assets are missing. `scripts/release.mjs` runs it as a hard gate before tagging the **skill** and **CLI** components and refuses to proceed when any asset is absent; the **extension** release is exempt because it ships a vendored WASM detector and never execs the engine. `IMPECCABLE_SKIP_ENGINE_CHECK=1` bypasses the gate only for the case where the assets exist but the registry probe is unreachable. CI's `engine-release-ready` job runs the same script as a hard gate, so missing release assets fail CI.
-
-`scripts/release.mjs` also refuses a **skill** or **CLI** tag when anything under `crates/`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain.toml` or a file the crates compile in from outside the workspace (its `ENGINE_SOURCE_PATHS` list) differs from the `engine-v<ENGINE_VERSION>` tag, because the binary users download is built from that tag: bump `ENGINE_VERSION` and release the engine first. `IMPECCABLE_SKIP_ENGINE_SOURCE_CHECK=1` bypasses it only for changes that cannot reach the binary, such as test-only edits.
+This fork publishes no engine releases, npm platform packages or downloadable binaries. `scripts/release.mjs` engine gates, `release-engine.yml` and `scripts/check-engine-release.mjs` do not apply to the skill. Build the engine locally with `cargo build --release -p impeccable` when you need it.
 
 ## Adding New Commands
 

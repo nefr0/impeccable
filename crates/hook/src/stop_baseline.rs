@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn stop_baseline_dependency_sensitive_findings_stay_unknown() {
         let mut cache = Cache::new();
-        let font = finding("design-system-font", "a.css", "font-family: serif", 1.0);
+        let font = finding("design-system-color", "a.css", "color: #ff0000", 1.0);
         let css = finding("side-tab", "a.html", "border-left: 4px solid red", 1.0);
         ensure_file(&mut cache, "s", "a.css").insert(
             FIELD.into(),

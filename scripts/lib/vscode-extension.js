@@ -1,28 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { quoteLauncher, rewritePluginMarkdownTree } from './plugin-paths.js';
+import { rewritePluginMarkdownTree } from './plugin-paths.js';
 
-const PROJECT_SCRIPTS = '.github/skills/impeccable/scripts';
-const PROJECT_FALLBACK =
-  `That base directory resolves every \`${PROJECT_SCRIPTS}/impeccable <verb>\` command in this skill and its references, ` +
-  `and \`${PROJECT_SCRIPTS}\` is the fallback only when the runtime reports no base directory.`;
-
-// VS Code provides the loaded skill's URI, not Claude's substitution variables.
-// Relative Markdown links resolve beside that file; shell commands still run
-// from the user's project. Never fall back to another installed skill copy.
-export function rewriteVSCodeMarkdown(content, { isSkillEntrypoint = false } = {}) {
-  if (isSkillEntrypoint) {
-    if (!content.includes(PROJECT_FALLBACK)) {
-      throw new Error('VS Code skill path rewrite drift: Setup fallback changed.');
-    }
-    content = content.replace(PROJECT_FALLBACK,
-      'Resolve the installed directory from this skill’s [launcher](scripts/impeccable). ' +
-      'Replace `<skill-base-dir>` with that absolute directory before running commands; it is not a shell variable.');
-  }
-  return content.replaceAll(PROJECT_SCRIPTS, '<skill-base-dir>/scripts')
-    .replace(/(?<!["\w/])<skill-base-dir>\/scripts\/impeccable(\.cmd)?(?=[\s`])/g,
-      (_, cmd) => quoteLauncher('<skill-base-dir>', Boolean(cmd)));
+// The skill is text only; its markdown ships unchanged.
+export function rewriteVSCodeMarkdown(content) {
+  return content;
 }
 
 /** Stage a declarative skill extension, independently of repo-install sidecars. */

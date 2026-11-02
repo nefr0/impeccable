@@ -5,8 +5,7 @@
 //! Pixel-level parity is proven by CRC32 of decoded/produced RGBA (and the f32
 //! diff-map) buffers; scores and fingerprints are compared value-for-value.
 
-use impeccable_comp::font_fingerprint as ff;
-use impeccable_comp::font_index as fi;
+use impeccable_comp::glyph_metrics as ff;
 use impeccable_comp::hero;
 use impeccable_comp::metrics as m;
 use impeccable_comp::raster::{self as r, rgb, Image};
@@ -215,94 +214,10 @@ fn fingerprint_parity() {
 }
 
 #[test]
-fn distance_parity() {
+fn features_list_parity() {
     let g = golden();
-    let o = ff::FpOpts::default();
-    let s6 = ff::fingerprint(&load("text_s6.png"), &o).unwrap();
-    let s4 = ff::fingerprint(&load("text_s4.png"), &o).unwrap();
-    let heavy = ff::fingerprint(&load("text_heavy.png"), &o).unwrap();
-    let d = |a: &ff::Fingerprint, b: &ff::Fingerprint| ff::distance(&|k| a.get(k), &|k| b.get(k));
-    approx(d(&s6, &s6), &g["distance"]["self"], 1e-12, "distance self");
-    approx(d(&s6, &s4), &g["distance"]["s6_s4"], 1e-10, "distance s6_s4");
-    approx(d(&s6, &heavy), &g["distance"]["s6_heavy"], 1e-10, "distance s6_heavy");
-    let gg = ff::gross_gap(&|k| s6.get(k), &|k| heavy.get(k));
-    approx(gg.width.unwrap(), &g["distance"]["grossGap_s6_heavy"]["width"], 1e-10, "grossGap.width");
-    approx(gg.weight.unwrap(), &g["distance"]["grossGap_s6_heavy"]["weight"], 1e-10, "grossGap.weight");
-
-    // synthetic: {advX,densTall,contrast} vs contrast:null
-    let a = |k: &str| match k {
-        "advX" => Some(0.5),
-        "densTall" => Some(0.5),
-        "contrast" => Some(1.0),
-        _ => None,
-    };
-    let b = |k: &str| match k {
-        "advX" => Some(0.5),
-        "densTall" => Some(0.5),
-        _ => None,
-    };
-    approx(ff::distance(&a, &b), &g["distance"]["synthetic"], 1e-12, "distance synthetic");
-
     let gf: Vec<String> = g["features"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_string()).collect();
     assert_eq!(*ff::FEATURES, gf, "FEATURES list");
-}
-
-#[test]
-fn font_index_parity() {
-    let g = golden();
-    let gi = &g["index"];
-    // INDEX_FEATURES order
-    let gif: Vec<String> = gi["features"].as_array().unwrap().iter().map(|v| v.as_str().unwrap().to_string()).collect();
-    assert_eq!(*fi::INDEX_FEATURES, gif, "INDEX_FEATURES");
-
-    let o = ff::FpOpts::default();
-    let s6 = ff::fingerprint(&load("text_s6.png"), &o).unwrap();
-    assert_eq!(fi::pack_vector(&|k| s6.get(k), &fi::INDEX_FEATURES), gi["pack"].as_str().unwrap(), "packVector");
-    let un = fi::unpack_vector(gi["pack"].as_str().unwrap(), &fi::INDEX_FEATURES);
-    for k in fi::INDEX_FEATURES.iter() {
-        let gv = &gi["unpack"][k.as_str()];
-        match (un.get(k), gv.is_null()) {
-            (Some(v), false) => approx(v, gv, 1e-9, &format!("unpack.{k}")),
-            (None, true) => {}
-            _ => panic!("unpack.{k} mismatch"),
-        }
-    }
-    // routeSize
-    let sizes = fi::index_sizes();
-    assert_eq!(fi::route_size(8.0, &sizes, false), fi::SizeKey::Num(f(&gi["route"]["c8"])), "route c8");
-    assert_eq!(fi::route_size(20.0, &sizes, false), fi::SizeKey::Num(f(&gi["route"]["c20"])), "route c20");
-    assert_eq!(fi::route_size(30.0, &sizes, false), fi::SizeKey::Num(f(&gi["route"]["c30"])), "route c30");
-    assert_eq!(fi::route_size(30.0, &sizes, true).key(), gi["route"]["c30caps"].as_str().unwrap(), "route c30caps");
-    // NON_TEXT_FAMILY
-    for e in gi["nonText"].as_array().unwrap() {
-        let fam = e["f"].as_str().unwrap();
-        assert_eq!(fi::NON_TEXT_FAMILY.is_match(fam), e["hit"].as_bool().unwrap(), "nonText {fam}");
-    }
-
-    // Full index (candidate ranking) — needs the catalog JSON from the public repo.
-    let pubrepo = std::env::var("IMPECCABLE_PUBLIC_REPO")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."));
-    let idx_path = pubrepo.join("skill/scripts/data/font-index.json");
-    if !idx_path.exists() {
-        eprintln!("skipping candidate-ranking parity: {idx_path:?} not present");
-        return;
-    }
-    let index = fi::load_font_index(&idx_path).expect("load font index");
-    if let Some(loaded) = gi.get("loaded") {
-        assert_eq!(index.schema, loaded["schema"].as_i64().unwrap(), "index schema");
-        assert_eq!(index.entries.len(), loaded["entries"].as_u64().unwrap() as usize, "index entries");
-    }
-    if let Some(cand) = gi.get("candidates_s6").and_then(|c| c.as_array()) {
-        let out = fi::candidates_from_index(&s6, &index, &fi::CandOpts { n: 10, ..Default::default() });
-        assert_eq!(out.len(), cand.len(), "candidate count s6");
-        for (c, gc) in out.iter().zip(cand) {
-            assert_eq!(c.family, gc["family"].as_str().unwrap(), "candidate family");
-            approx(c.weight, &gc["weight"], 1e-9, "candidate weight");
-            assert_eq!(c.category, gc["category"].as_str().unwrap(), "candidate category");
-            approx(c.d, &gc["d"], 1e-6, "candidate distance");
-        }
-    }
 }
 
 fn assert_json_eq(a: &Value, b: &Value, what: &str) {
@@ -336,7 +251,7 @@ fn hero_checks_parity() {
     // textRegion
     let comp_crop = load("hero_comp_crop.png");
     let build_crop = load("hero_build_crop.png");
-    let region = hero::Region { id: "hero".into(), kind: "text".into(), chosen: None };
+    let region = hero::Region { id: "hero".into(), kind: "text".into() };
     let trc = hero::text_region_check(&region, &comp_crop, &build_crop);
     assert_json_eq(&trc["findings"], &gh["textRegion"]["findings"], "textRegion.findings");
     assert_json_eq(&trc["metrics"], &gh["textRegion"]["metrics"], "textRegion.metrics");
@@ -378,7 +293,7 @@ fn hero_checks_parity() {
     let mut strip_build = r::create_image(600, 120, [255, 255, 255, 255]);
     r::fill_rect(&mut strip_build, 0.0, 0.0, 600.0, 40.0, rgb([20, 30, 50]));
     r::fill_rect(&mut strip_build, 0.0, 88.0, 600.0, 2.0, rgb([0, 0, 0]));
-    let nav = hero::Region { id: "nav".into(), kind: "band".into(), chosen: None };
+    let nav = hero::Region { id: "nav".into(), kind: "band".into() };
     let cs = hero::chrome_strip_check(&nav, &strip_comp, &strip_build);
     assert_json_eq(&cs["findings"], &gh["chromeStrip"]["findings"], "chromeStrip.findings");
     assert_json_eq(&cs["comp"], &gh["chromeStrip"]["comp"], "chromeStrip.comp");

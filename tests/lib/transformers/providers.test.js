@@ -100,16 +100,16 @@ for (const [key, config] of Object.entries(PROVIDERS)) {
           description: 'Test',
           userInvocable: true,
           allowedTools: 'Bash',
-          body: '{{ask_instruction}} Run `{{scripts_path}}/impeccable context`.',
-          references: [{ name: 'polish', content: 'Run `{{scripts_path}}/impeccable detect`.', filePath: '/fake/polish.md' }],
+          body: '{{ask_instruction}} Read PRODUCT.md.',
+          references: [{ name: 'polish', content: 'Read DESIGN.md.', filePath: '/fake/polish.md' }],
         }], TEST_DIR);
         const content = fs.readFileSync(skillPath(config, 'impeccable'), 'utf8');
         expect(content).toContain('Ask with the ask_user_question tool');
-        expect(content).toContain('.dsh/skills/impeccable/scripts/impeccable context');
+        expect(content).toContain('Read PRODUCT.md.');
         expect(parseFrontmatter(content).frontmatter['allowed-tools']).toBeUndefined();
         const root = path.join(TEST_DIR, 'dsh', '.dsh');
         expect(fs.readFileSync(path.join(root, 'skills/impeccable/reference/polish.md'), 'utf8'))
-          .toContain('.dsh/skills/impeccable/scripts/impeccable detect');
+          .toContain('Read DESIGN.md.');
         expect(fs.readdirSync(root)).toEqual(['skills']);
         expect(config.emitHooks).toBeUndefined();
         expect(config.agentFormat).toBeUndefined();

@@ -9,7 +9,7 @@ Analyze what makes the design feel complex or cluttered:
 
 1. **Identify complexity sources**:
    - **Too many elements**: Competing buttons, redundant information, visual clutter
-   - **Excessive variation**: Too many colors, fonts, sizes, styles without purpose
+   - **Excessive variation**: Too many colors, sizes, styles without purpose
    - **Information overload**: Everything visible at once, no progressive disclosure
    - **Visual noise**: Unnecessary borders, shadows, backgrounds, decorations
    - **Confusing hierarchy**: Unclear what matters most
@@ -49,7 +49,7 @@ Systematically remove complexity across these dimensions:
 
 ### Visual Simplification
 - **Reduce color palette**: Use 1-2 colors plus neutrals, not 5-7 colors
-- **Limit typography**: One font family, 3-4 sizes maximum, 2-3 weights
+- **Limit typography**: 3-4 sizes maximum, 2-3 weights
 - **Remove decorations**: Eliminate borders, shadows, backgrounds that don't serve hierarchy or function
 - **Flatten structure**: Reduce nesting, remove unnecessary containers; never nest cards inside cards
 - **Remove unnecessary cards**: Cards aren't needed for basic layout; use spacing and alignment instead

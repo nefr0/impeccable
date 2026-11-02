@@ -60,22 +60,6 @@ const HeavyChart = lazy(() => import('./HeavyChart'));
 - Minimize CSS files
 - Use CSS containment for independent regions
 
-**Optimize Fonts**:
-- Use `font-display: swap` or `optional`
-- Subset fonts (only characters you need)
-- Preload critical fonts
-- Use system fonts when appropriate
-- Limit font weights loaded
-
-```css
-@font-face {
-  font-family: 'CustomFont';
-  src: url('/fonts/custom.woff2') format('woff2');
-  font-display: swap; /* Show fallback immediately */
-  unicode-range: U+0020-007F; /* Basic Latin only */
-}
-```
-
 **Optimize Loading Strategy**:
 - Critical resources first (async/defer non-critical)
 - Preload critical assets

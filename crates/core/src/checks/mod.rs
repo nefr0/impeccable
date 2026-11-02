@@ -7,9 +7,9 @@
 //! `checks::measures::StyleMap` and friends keep resolving here.
 //!
 //! - `rules`: Section 3 pure element checks (checkBorders, checkColors,
-//!   checkHoverContrast, checkIconTile, checkItalicSerif, checkHeroEyebrow,
+//!   checkHoverContrast, checkIconTile, checkHeroEyebrow,
 //!   checkKickerAboveHeading, checkMotion, checkGlow) and their heuristics
-//!   (isCardLikeFromProps, resolveSerif, isAccentColor,
+//!   (isCardLikeFromProps, isAccentColor,
 //!   resolveHeroHeadingSizePx). Open: `impeccable_foundation::rules::types`.
 //! - `css_scan`: CSS-text scanners (cssTextHasDarkRootBg,
 //!   scanCssTextForGlow/GridBackground/RadialHalo/PseudoStripe/InsetStripe/

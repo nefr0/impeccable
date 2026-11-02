@@ -11,7 +11,6 @@ use std::io::Write;
 
 use impeccable_common::Io;
 
-mod font_render;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -76,10 +75,6 @@ fn run(args: &[String], io: &mut Io) -> i32 {
         // comp-fidelity verbs (crates/comp-verbs over crates/comp)
         "comp-spec" => impeccable_comp_verbs::run_comp_spec(rest, io),
         "comp-diff" => impeccable_comp_verbs::run_comp_diff(rest, io),
-        "font-match" => {
-            let mut renderer = font_render::CdpFontRenderer::from_process_env();
-            impeccable_comp_verbs::run_font_match(rest, io, &mut renderer)
-        }
         "capture-server" => {
             match impeccable::capture_service::serve(rest) { Ok(()) => 0, Err(e) => { io.err(&format!("Native capture service: {e}\n")); 1 } }
         }

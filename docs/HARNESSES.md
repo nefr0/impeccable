@@ -73,18 +73,9 @@ Notes:
 - Devin's skill frontmatter carries `name`, `description`, `argument-hint`, `allowed-tools`, `triggers`, `model`, `subagent`, `agent`, and `permissions` (the last four are documented for the CLI). It has no `user-invocable`; `triggers` defaults to user and model, so Impeccable omits it. The CLI docs describe `allowed-tools` as an auto-approve list and the web docs as a restriction, and Impeccable's Claude-syntax entries match no Devin tool (`read`, `grep`, `glob`, `exec`), so Impeccable omits it too. The CLI has lifecycle hooks (`.devin/hooks.v1.json`, plus Claude-format hooks read from `.claude/settings.json`) and subagent profiles (`.devin/agents/`, `.agents/agents/`, `~/.config/devin/agents/`, same frontmatter as skills with Devin tool names); Impeccable targets neither yet, so Devin gets the skill without an edit hook and runs the agent roles inline from `reference/degraded/`. Verified 2026-10-26 against the bundled docs of Devin CLI 3000.11.205 and [docs.devin.ai](https://docs.devin.ai/cli/extensibility/skills/overview).
 - Unknown fields are silently ignored by all harnesses.
 
-## Hook surface used by Impeccable
+## Hook surface
 
-| Harness | Edit hook | Startup hook | Manifest location | Notes |
-|---------|:---------:|:------------:|-------------------|-------|
-| Claude Code | Yes (`PostToolUse`) | No | `.claude/settings.json` | Project-local settings entry installed by `npx impeccable skills install/update`. Runs `.claude/skills/impeccable/scripts/hook.mjs`. |
-| Codex CLI | Yes (`PostToolUse`) | No | `.codex/hooks.json` | Project-local manifest installed with the `.agents/skills/impeccable` payload. Runs `.agents/skills/impeccable/scripts/hook.mjs` from the git root. Requires normal `/hooks` trust approval. |
-| Cursor | Yes (`preToolUse`) | No | `.cursor/hooks.json` | Project-level manifest installed with `.cursor/skills/impeccable`. Runs `hook-before-edit.mjs` to block bad proposed writes before they land. Reloads on save; restart Cursor if hooks do not pick up. |
-| Grok Build | Yes (`PostToolUse`) | No | `.grok/hooks/impeccable.json` | Project-local manifest installed with `.grok/skills/impeccable`. Claude-compatible matchers (`Edit\|Write\|MultiEdit`) alias to Grok `search_replace`. PostToolUse runs the scan and warms the session cache; Grok ignores that stdout. Stop `additionalContext` is the user-visible pass. Ignore Grok's observe-only Stop with `reason: "shutdown"`. Requires `/hooks-trust` or `--trust`. Plugin installs use `plugin/hooks/hooks.json` with `${CLAUDE_PLUGIN_ROOT}` (aliased to `GROK_PLUGIN_ROOT`). |
-| Hermes Agent | Yes (`transform_tool_result` plugin hook) | No | `~/.hermes/plugins/impeccable-design-hook/` | A Python plugin, not a manifest: it runs the skill's launcher on `write_file` / `patch` results and runs the Stop deep pass from `pre_verify`. Plugins are an opt-in allow-list, so enable it once with `hermes plugins enable impeccable-design-hook`. |
-| Oh My Pi | No | No | n/a | Runtime hooks use `pi-extension`; no `hooks.json` manifest surface. |
-| Devin | No | No | n/a | Devin CLI discovers `.devin/hooks.v1.json` and Claude-format `.claude/settings.json` hooks; Impeccable does not install a Devin manifest yet. |
-| All other harnesses | No | No | n/a | No documented hook surface today. Skill and commands still ship. |
+Not used. The skill is text only in this fork and installs no hooks on any harness. The feature matrix above describes harness capabilities only.
 
 ## Skill Directory Structure
 

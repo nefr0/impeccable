@@ -197,10 +197,10 @@ mod tests {
 
     #[test]
     fn parses_directives() {
-        let src = "<!-- impeccable-disable low-contrast -- exported -->\nx /* impeccable-disable-line design-system-font */\n// impeccable-disable-next-line bounce-easing: reason\nfoo\n";
+        let src = "<!-- impeccable-disable low-contrast -- exported -->\nx /* impeccable-disable-line design-system-color */\n// impeccable-disable-next-line bounce-easing: reason\nfoo\n";
         let d = parse_inline_ignores(Some(src));
         assert_eq!(d.file, vec!["low-contrast"]);
-        assert_eq!(d.line, vec![(2, vec!["design-system-font".to_string()])]);
+        assert_eq!(d.line, vec![(2, vec!["design-system-color".to_string()])]);
         assert_eq!(d.next_line, vec![(4, vec!["bounce-easing".to_string()])]);
         let bare = parse_inline_ignores(Some("<!-- impeccable-disable -->"));
         assert_eq!(bare.file, vec!["*"]);

@@ -5,16 +5,13 @@
 //!   - `png_io`   — JS lib/png.mjs (decode/encode + loadRaster)
 //!   - `raster`   — JS lib/raster.mjs (image type and ops)
 //!   - `metrics`  — JS lib/image-metrics.mjs (the comparison math)
-//!   - `font_fingerprint` — JS lib/font-fingerprint.mjs
-//!   - `font_index`       — JS lib/font-index.mjs
+//!   - `glyph_metrics` — lettering measurement (cap height, lines, ink density)
 //!   - `hero`     — JS lib/hero-checks.mjs (+ the pure `inkBox`)
 //!
-//! Deferred to step 2 (need a browser or the verb orchestrators): the
-//! Playwright/CDP rendering behind font-match `renderCandidates`, and the four
-//! orchestrators build-phase / comp-diff / comp-spec / font-match.
+//! The verb orchestrators build-phase / comp-diff / comp-spec live in
+//! `comp-verbs`.
 
-pub mod font_fingerprint;
-pub mod font_index;
+pub mod glyph_metrics;
 pub mod hero;
 pub mod jsnum;
 pub mod metrics;

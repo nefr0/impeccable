@@ -1,17 +1,15 @@
 ### Purpose
 
-Resolve one stable target, run two independent assessments, synthesize a design critique, persist a snapshot, and ask the user what to improve next. The chat response is the primary deliverable; the snapshot is an archive of that run.
+Resolve one stable target, run two independent assessments, synthesize a design critique, and ask the user what to improve next. The chat response is the only deliverable; nothing is written to disk.
 
 ### Hard Invariants
 
-- Assessment A (design review) and Assessment B (detector/browser evidence) are both required, except on a native platform (see Assessment Orchestration).
+- Assessment A (design review) and Assessment B (craft-floor scan plus browser evidence) are both required, except on a native platform (see Assessment Orchestration).
 - Assessment A and B MUST run as two isolated sub-agents whenever a sub-agent/Task tool is exposed. Running them inline in this context is "possible" but is NOT permitted; it is a degraded run. Inline is allowed ONLY when no sub-agent tool exists (or the user declined, on harnesses that ask). Native platforms run A alone (see Assessment Orchestration).
 - If you degrade for any reason, the report's first line MUST be a banner: `⚠️ DEGRADED: single-context (<reason>)`. A silent degraded critique is a failed critique.
-- Assessment A must finish before detector findings enter the parent synthesis context. Detector output is deterministic, but it still anchors judgment.
-- A skipped detector is a failed critique run unless `impeccable detect` is missing or crashes after a real attempt, or the platform is native (see Assessment Orchestration).
+- Assessment A must finish before craft-floor scan findings enter the parent synthesis context. The scan is rule-based, but it still anchors judgment.
+- A skipped craft-floor scan is a failed critique run, except on a native platform, where the scan runs against source in the same context (see Assessment Orchestration).
 - Viewable targets require browser inspection when available.
-- Any local server started only for critique visualization must run in the background, have a recorded stop method, and be stopped before final reporting unless the user asks to keep it.
-- Do not claim a user-visible overlay exists unless script injection succeeded and the detector ran in the page.
 - The question is the LAST thing in the response. Write the entire report out first, then ask; nothing follows the question. Prose emitted after a structured question is withheld until the user answers it, so a report written after the question reads as if the critique never ran.
 - A run that ends with neither the targeted questions nor a literal `Questions skipped: <reason>` line is an incomplete run. The report is not the finish; the close is.
 
@@ -21,16 +19,10 @@ Resolve one stable target, run two independent assessments, synthesize a design 
    - "the homepage" -> `site/pages/index.astro` or `index.html`
    - "the settings modal" -> the primary component file
    - "this page" -> the current URL or source file
-2. **Confirm the target slugs cleanly**:
-   ```bash
-   .grok/skills/impeccable/scripts/impeccable critique-storage slug "<resolved-path-or-url>"
-   ```
-   Every later command also accepts the resolved target directly and derives the same slug internally; never hand-write a slug. If this exits non-zero, skip persistence and trend for this run, but continue the critique.
-3. **Read `.impeccable/critique/ignore.md`** if it exists. Drop matching findings silently; it is the only prior-run input critique consumes.
 
 ### Assessment Orchestration
 
-**Native platforms** (`ios` / `android` / `adaptive`): Assessment B does not apply, because `impeccable detect` and the browser overlay read only web markup. Run Assessment A alone in this context and skip both sub-agent gates below, the Codex permission question included: with no B there is nothing to isolate A from, so this is the complete native method and carries no degraded banner. Do not run `impeccable detect` on native source; its empty result reads as clean.
+**Native platforms** (`ios` / `android` / `adaptive`): Assessment B's browser evidence does not apply; browsers read only web markup. Run Assessment A, then scan the native source against [craft-floor.md](craft-floor.md) and the platform reference in this same context, and skip both sub-agent gates below, the Codex permission question included. This is the complete native method and carries no degraded banner.
 
 Delegate Assessment A and Assessment B to separate sub-agents. They must not see each other's output. Do not show findings to the user until synthesis.
 
@@ -48,7 +40,7 @@ If browser automation is available, each assessment creates its own new tab. Nev
 Read relevant source files and visually inspect the live page when browser automation is available. Think like a design director.
 
 Evaluate:
-- **Design specificity**: Is the composition, interaction, and visual language grounded in this product, or could an unrelated product use it unchanged? Make this judgment before seeing detector output.
+- **Design specificity**: Is the composition, interaction, and visual language grounded in this product, or could an unrelated product use it unchanged? Make this judgment before the craft-floor scan.
 - **Holistic design**: hierarchy, IA, emotional fit, discoverability, composition, typography, color, accessibility, states, copy, and edge cases.
 - **Cognitive load**: consult the [Cognitive Load Assessment](#cognitive-load-assessment) section below; report checklist failures and decision points with >4 visible options.
 - **Emotional journey**: peak-end rule, emotional valleys, reassurance at high-stakes moments.
@@ -56,47 +48,29 @@ Evaluate:
 
 Return: design-specificity verdict, heuristic scores, cognitive load, emotional journey, 2-3 strengths, 3-5 priority issues, persona red flags, minor observations, and provocative questions.
 
-### Assessment B: Detector + Browser Evidence
+### Assessment B: Craft-Floor Scan + Browser Evidence
 
-Run the bundled detector and browser visualization evidence. On web, Assessment B is mandatory and must remain isolated from Assessment A until both are complete.
+Read [craft-floor.md](craft-floor.md) and scan the target against it yourself: markup, styles, and the rendered page when a browser is available. Report each rule hit with its rule id and file location, and mark false positives. On web, Assessment B is mandatory and must remain isolated from Assessment A until both are complete.
 
-CLI scan:
-```bash
-.grok/skills/impeccable/scripts/impeccable detect --json [target]
-```
-
-- Pass markup files/directories as `[target]`; do not pass CSS-only files.
-- For URLs, skip CLI scan and use browser visualization.
+- Scan markup, component, and style files; for URLs, scan the rendered page through the browser.
 - For very large trees (500+ scannable files), narrow scope or ask.
-- Exit code 0 = clean; 2 = findings.
-- If the detector entrypoint is missing or fails to load, report deterministic scan unavailable and continue with browser/manual review.
+- A scan hit is evidence, not a verdict; verify each in context.
 
-Browser visualization is required for a viewable target when browser automation is available. Use a localhost dev/static URL for local files; avoid `file://` unless the available browser explicitly supports this workflow. Overlay flow:
+Browser inspection is required for a viewable target when browser automation is available. Use a localhost dev/static URL for local files; avoid `file://` unless the available browser explicitly supports this workflow.
 
-1. Create a fresh tab and navigate. Prefer the harness's native/browser-canvas screenshot path before hand-rolling a Playwright/Puppeteer script; only fall back to a custom script when no native browser tool is exposed.
-2. Preflight mutable injection by setting `document.title` and appending a `<script>` tag. Read-only evaluate APIs do not count.
-3. If mutation is unavailable, skip live server, browser presentation, and injection; report fallback signal.
-4. If mutation is available, start `.grok/skills/impeccable/scripts/impeccable live-server --background`, present the browser if supported, label `[Human]`, scroll top, inject `http://localhost:PORT/detect.js`, wait 2-3 seconds, read `impeccable` console messages, then run `.grok/skills/impeccable/scripts/impeccable live-server stop --keep-inject`. The overlay went in through the browser, so the project's HTML has no script tag to strip; a bare `stop` also runs `live-inject --remove` against the project's entry file, an edit a read-only critique should not make.
-5. For multi-view targets, inject on 3-5 representative pages.
+1. Create a fresh tab and navigate. Prefer the harness's native/browser-canvas screenshot path before hand-rolling a Playwright/Puppeteer script.
+2. Capture the target at desktop and mobile widths and read the console for errors.
+3. For multi-view targets, inspect 3-5 representative pages.
 
-**Desktop apps** (Electron, NW.js, CEF, WebView2): there is no URL to open, so Assessment B attaches to the running app instead.
+**Desktop apps** (Electron, NW.js, CEF, WebView2): there is no URL to open, so Assessment B inspects the running app instead. Launch it with a local DevTools port (`--remote-debugging-port=9222`, or `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` for WebView2), keep the port on 127.0.0.1, seed the state under review, and take screenshots through the harness's CDP tooling. The app has one window, so the assessments take turns in it (A, then B; see the sub-agent gate), and each must leave it as found. Tauri on macOS (WKWebView) and on Linux (WebKitGTK) expose no CDP: run Assessment A and the source scan only, and say so in Run Notes.
 
-1. Launch the app with a local DevTools port: `--remote-debugging-port=9222` (Electron, NW.js, CEF), or `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` for WebView2. Keep the port on 127.0.0.1 and never expose it beyond this machine; prefer a test profile and test data.
-2. Seed the state under review (route, open panel, theme, data). The scan reads the window as it stands. Keep the window on screen: a minimized or hidden window scans without the pixel contrast reads.
-3. Run `.grok/skills/impeccable/scripts/impeccable detect --cdp 9222 --target <part of the page URL or title> --json`. It returns the same JSON as a URL scan and leaves the page as found. With several pages open it fails and lists them; rerun with a `--target` that names one.
-4. Take screenshots through the harness's CDP tooling (`Page.captureScreenshot` on the same target). Skip the live-server overlay: there is no `[Human]` tab.
-
-The app has one window, so the assessments take turns in it instead of opening tabs (A, then B; see the sub-agent gate), and each must leave it as found: put back any route, scroll, theme, or panel it changed. Tauri on macOS (WKWebView) and on Linux (WebKitGTK) expose no CDP: run Assessment A and the source scan only, and say so in Run Notes.
-
-Return: CLI findings JSON/counts, browser console findings if applicable, false positives, and skipped/failed browser steps with concrete reasons.
-
-After Assessment B returns usable CLI findings, reuse them. Do not rerun `impeccable detect` in the parent unless Assessment B failed, was truncated, or omitted count, rule names, or file locations.
+Return: craft-floor findings with rule ids and locations, browser findings if applicable, false positives, and skipped or failed browser steps with concrete reasons.
 
 ### Generate Combined Critique Report
 
-Synthesize both assessments into a single report. Do not simply concatenate. Weave the findings together, noting where the LLM review and detector agree, where the detector caught issues the LLM missed, and where detector findings are false positives.
+Synthesize both assessments into a single report. Do not simply concatenate. Weave the findings together, noting where the design review and the craft-floor scan agree, where the scan caught issues the review missed, and where scan findings are false positives.
 
-The chat response is the primary user-facing deliverable. Present the full structured critique below in chat; do not replace it with a summary and a link. The persisted snapshot is an archive of that run.
+The chat response is the primary user-facing deliverable. Present the full structured critique below in chat; do not replace it with a summary and a link.
 
 Structure your feedback as a design director would:
 
@@ -105,7 +79,7 @@ Structure your feedback as a design director would:
 The report's first line MUST declare how the assessments were run, so a degraded run is never silent:
 - Dual-agent: `Method: dual-agent (A: <agent-id> · B: <agent-id>)`
 - Degraded: `⚠️ DEGRADED: single-context (<reason, e.g. no sub-agent tool exposed>)`
-- Native: `Method: design review only (detector not applicable, native platform)`
+- Native: `Method: design review plus craft-floor source scan (native platform)`
 
 #### Design Health Score
 > *Consult the [Heuristics Scoring Guide](#heuristics-scoring-guide) section below.*
@@ -130,7 +104,7 @@ The applicable maximum is 4 times the number of heuristics you actually scored: 
 
 Be honest with scores. A 4 means genuinely excellent. Most real interfaces score 20-32 out of 40.
 
-**Mode applicability**: heuristics 7 (Flexibility and Efficiency) and 10 (Help and Documentation) may be scored `n/a` on Persuade and Experience surfaces (landing pages, campaigns, portfolios, bodies of work), as may any other heuristic that genuinely cannot apply to the surface under review. Write `n/a` in the Score cell with a one-line reason, and renormalize the total to the applicable maximum (e.g. **24/32** when two heuristics are n/a) so the rating band stays proportional. The persisted snapshot must record the applicable maximum and which heuristics were scored n/a.
+**Mode applicability**: heuristics 7 (Flexibility and Efficiency) and 10 (Help and Documentation) may be scored `n/a` on Persuade and Experience surfaces (landing pages, campaigns, portfolios, bodies of work), as may any other heuristic that genuinely cannot apply to the surface under review. Write `n/a` in the Score cell with a one-line reason, and renormalize the total to the applicable maximum (e.g. **24/32** when two heuristics are n/a) so the rating band stays proportional. State the applicable maximum and which heuristics were scored n/a.
 
 #### Design Specificity Verdict
 
@@ -138,9 +112,7 @@ Be honest with scores. A 4 means genuinely excellent. Most real interfaces score
 
 **LLM assessment**: Your unanchored evaluation of design specificity. Cover overall coherence, structural sameness, category-interchangeable choices, and missed opportunities for product character.
 
-**Deterministic scan**: Summarize what the automated detector found, with counts and file locations. Note any additional issues the detector caught that you missed, and flag any false positives. On a native platform, write `not applicable (native platform)` instead.
-
-**Visual overlays** (if injection succeeded): Tell the user that overlays are now visible in the **[Human]** tab in their browser, highlighting the detected issues. Summarize what the console output reported. If browser visualization was attempted but injection failed, say that no reliable user-visible overlay is available and report the fallback signal instead.
+**Craft-floor scan**: Summarize what the scan against [craft-floor.md](craft-floor.md) found, with rule ids and file locations. Note any additional issues it caught that you missed, and flag any false positives. On a native platform, scan the source against the same file and the platform reference.
 
 #### Overall Impression
 A brief gut reaction: what works, what doesn't, and the single biggest opportunity.
@@ -189,49 +161,7 @@ Provocative questions that might unlock better solutions:
 
 ### Deliver the Report
 
-Write the full report into the chat response now, before any persistence work. This is the deliverable; everything below it is bookkeeping.
-
-Do this first because the alternative is the most common way this command fails: the report gets composed once, straight into the persistence heredoc, and the run ends with a perfect archive nobody has read. Composing it into a file is not delivering it. If the report exists only in `.impeccable/critique/`, the run produced nothing.
-
-Persistence is not the end of the run. After it, the response continues with the trend line and the close.
-
-### Persist the Snapshot
-
-Once the report above is finalized, write it to `.impeccable/critique/` so the user can refer back, and so `/impeccable polish` can pick up the priority issues without a copy-paste.
-
-Skip this step if the Setup slug was null (vague or root-level target).
-
-1. **Write the body to a temp file** so you can pipe it to the helper. Use the full critique report (heuristic table, design-specificity verdict, priority issues, persona red flags, minor observations, and questions), but stop before the "Ask the User" / "Recommended Actions" sections that come later.
-
-   This is a copy of the report you already delivered above, for later commands to read. It is not delivery. If you find yourself composing the report for the first time inside this heredoc, you have skipped Deliver the Report; go back and send it.
-
-2. **Pass the structured metadata** through `IMPECCABLE_CRITIQUE_META` (JSON), then run the write command:
-   ```bash
-   IMPECCABLE_CRITIQUE_META='{"target":"<user phrasing>","total_score":<n>,"max_score":<n>,"na_heuristics":"<comma-separated numbers, or empty>","p0_count":<n>,"p1_count":<n>}' \
-     .grok/skills/impeccable/scripts/impeccable critique-storage write "<resolved target>" <body-file>
-   ```
-   `max_score` is the applicable maximum from the heuristic table (40 when every heuristic applied), so a later run can tell a renormalized total from a full one. For a local file target, the helper also records an exact content fingerprint so polish can distinguish the assessed bytes from later edits without relying on Git state or timestamps. The helper prints the absolute path it wrote. Leave that file on disk. Polish closes it; this run does not.
-
-3. **Delete the temp body file** after the write attempt completes, whether the write succeeded or failed. If deletion fails, mention `temp-file cleanup failed: <reason>` briefly in the final output, but do not block the critique.
-
-4. **Read the trend** for context:
-   ```bash
-   .grok/skills/impeccable/scripts/impeccable critique-storage trend "<resolved target>" 5
-   ```
-   This returns a JSON array of the last 5 frontmatter entries (including the one you just wrote).
-
-5. **Append a single line to the user-visible output**, after the report and before the questions:
-
-   > **Trend for `<slug>` (last 5 runs): 24 → 28 → 32 → 29 → 32 (out of 40)**
-   > Wrote `.impeccable/critique/<filename>`.
-
-   Read `max_score` on each trend entry. When every entry shares one maximum, state it once as above. When they differ, print each score with its own denominator (`24/32 → 30/40`) and note that the runs scored different heuristic sets, so the line is not a like-for-like comparison. Treat a missing `max_score` on an older entry as 40.
-
-   If this is the first run for the slug, the trend is just one score; say so: "First run for this target, no trend yet."
-
-6. **Close the run.** Go to Ask the User below and emit the questions, or the `Questions skipped: <reason>` line when the count allows it. The run is not complete until you do. Persistence is bookkeeping and cleanup is not an ending; stopping here leaves the user with a report and no way forward, and leaves `/impeccable polish` with no priorities to inherit.
-
-This is fire-and-forget. Do not show the user the helper's JSON output; only the human-readable trend line and the written path. Failures here should not block the rest of the flow; print the error and move on.
+Write the full report into the chat response, then close with the questions. Nothing is written to disk; the chat response is the whole deliverable.
 
 ### Ask the User
 
@@ -283,7 +213,7 @@ After presenting the summary, tell the user:
 
 > You can ask me to run these one at a time, all at once, or in any order you prefer.
 >
-> Re-run `/impeccable critique` after fixes to see your score improve.
+> Re-run the critique command after fixes to see your score improve.
 
 ---
 
