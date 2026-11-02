@@ -141,13 +141,11 @@
     },
     {
       "from": "launcher",
-      "to": "binary",
-      "label": "exec local build"
+      "to": "binary"
     },
     {
       "from": "binary",
-      "to": "detector",
-      "label": "runs"
+      "to": "detector"
     },
     {
       "from": "launcher",
