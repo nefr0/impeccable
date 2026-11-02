@@ -7,7 +7,7 @@ publish.workspace = true
 
 # The pure, browser-independent foundation of the comp-fidelity pipeline,
 # ported from the skill's JS libs (png / raster / image-metrics /
-# font-fingerprint / font-index / hero-checks). Self-contained and free of the
+# glyph metrics / hero-checks). Self-contained and free of the
 # closed `core` crate so it can be split into its own open repo: the only JS
 # number semantics it needs (`toFixed`, hex) are reimplemented locally in
 # `jsnum`. No CLI verbs and no browser rendering live here (that is step 2).

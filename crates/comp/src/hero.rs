@@ -5,7 +5,7 @@
 //! rasters and the spec. Results are shaped as `serde_json::Value` matching the
 //! JS return objects so the parity harness can compare them directly.
 
-use crate::font_fingerprint::{fingerprint, FpOpts};
+use crate::glyph_metrics::{fingerprint, FpOpts};
 use crate::jsnum::{round, round_fixed, to_fixed};
 use crate::metrics::{delta_e, detail_grid, dominant_colors, to_gray, DominantColor};
 use crate::raster::Image;
@@ -138,13 +138,6 @@ fn colour_spans_edge(img: &Image, hex: &str) -> bool {
 pub struct Region {
     pub id: String,
     pub kind: String,
-    pub chosen: Option<Chosen>,
-}
-
-pub struct Chosen {
-    pub family: String,
-    pub weight: String,
-    pub font_size_px: String,
 }
 
 /// JS: textRegionCheck(region, compCrop, buildCrop, {capTol, minCap}).
@@ -194,25 +187,14 @@ pub fn text_region_check(region: &Region, comp_crop: &Image, build_crop: &Image)
     };
     let cap_delta = (bfp.cap_height_px - comp.cap_height_px) / comp.cap_height_px;
     if cap_delta.abs() > cap_tol {
-        let chosen = region
-            .chosen
-            .as_ref()
-            .map(|c| {
-                format!(
-                    " (font-match ranked {} {} at {}px)",
-                    c.family, c.weight, c.font_size_px
-                )
-            })
-            .unwrap_or_default();
         findings.push(format!(
-            "text {}: cap height {}px in the build, {}px in the comp ({}{}%); set font-size so the cap height renders at {}px{}",
+            "text {}: cap height {}px in the build, {}px in the comp ({}{}%); set font-size so the cap height renders at {}px",
             region.id,
             n(bfp.cap_height_px),
             n(comp.cap_height_px),
             if cap_delta > 0.0 { "+" } else { "" },
             round(cap_delta * 100.0) as i64,
-            n(comp.cap_height_px),
-            chosen
+            n(comp.cap_height_px)
         ));
     }
     if comp.lines >= 2 && bfp.lines != comp.lines && (bfp.lines as i64 - comp.lines as i64).abs() >= 1 {
@@ -263,7 +245,7 @@ pub fn text_region_check(region: &Region, comp_crop: &Image, build_crop: &Image)
             let r = bd / cd;
             if r > 1.25 {
                 findings.push(format!(
-                    "text {}: the face renders {}% heavier than the comp's (ink density {} vs {}); drop a weight step or use the ranked face",
+                    "text {}: the face renders {}% heavier than the comp's (ink density {} vs {}); drop a weight step",
                     region.id,
                     round((r - 1.0) * 100.0) as i64,
                     to_fixed(bd, 2),
@@ -271,7 +253,7 @@ pub fn text_region_check(region: &Region, comp_crop: &Image, build_crop: &Image)
                 ));
             } else if r < 0.75 {
                 findings.push(format!(
-                    "text {}: the face renders {}% lighter than the comp's (ink density {} vs {}); raise a weight step or use the ranked face",
+                    "text {}: the face renders {}% lighter than the comp's (ink density {} vs {}); raise a weight step",
                     region.id,
                     round((1.0 - r) * 100.0) as i64,
                     to_fixed(bd, 2),
@@ -575,7 +557,7 @@ mod foreground_tests {
     }
     #[test]
     fn incorrect_interior_lettering_still_produces_colour_feedback() {
-        let region = Region { id:"action".into(), kind:"control".into(), chosen:None };
+        let region = Region { id:"action".into(), kind:"control".into() };
         let result = text_region_check(&region, &button([8,40,72,255]), &button([180,20,180,255]));
         assert!(result["findings"].as_array().unwrap().iter().any(|f|f.as_str().unwrap().contains("ink is")), "{result}");
     }
@@ -587,7 +569,7 @@ mod foreground_tests {
         for y in [0,1,2,37,38,39] { for x in 0..120 {
             b.data[(y*120+x)*4..(y*120+x)*4+4].copy_from_slice(&[248,216,71,255]);
         }}
-        let region = Region { id:"action".into(), kind:"control".into(), chosen:None };
+        let region = Region { id:"action".into(), kind:"control".into() };
         let result = text_region_check(&region,&a,&b);
         assert!(!result["findings"].as_array().unwrap().iter().any(|f| {
             let s=f.as_str().unwrap();s.contains("first line") || s.contains("ink is")
@@ -607,7 +589,7 @@ mod foreground_tests {
     }
     #[test]
     fn lettering_cropped_to_its_ink_keeps_its_colour() {
-        let region = Region { id:"title".into(), kind:"text".into(), chosen:None };
+        let region = Region { id:"title".into(), kind:"text".into() };
         for margin in [0, 4] {
             let result = text_region_check(&region, &lettering([24,24,24,255], margin), &lettering([200,30,30,255], margin));
             assert!(result["findings"].as_array().unwrap().iter().any(|f| f.as_str().unwrap().contains("ink is")), "margin {margin}: {result}");

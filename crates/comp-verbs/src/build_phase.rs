@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use impeccable_common::Io;
 use impeccable_comp::hero::{
-    chrome_strip_check, invented_ink, plate_clip_check, svg_illustrations, text_region_check, Chosen, Region,
+    chrome_strip_check, invented_ink, plate_clip_check, svg_illustrations, text_region_check, Region,
 };
 use impeccable_comp::png_io;
 use impeccable_comp::raster::{self as r, Image};
@@ -21,7 +21,6 @@ use serde_json::{json, Map, Value};
 use crate::comp_diff::{align_build, best_shift, build_report, compare, write_artifacts, write_region_artifacts, CompareResult, Score};
 use crate::comp_spec::{load_spec, prepare_plate_reference, PlateReference, BUILD_DIR, SPEC_PATH};
 use crate::displacement::{Displacement, Rect as DRect};
-use crate::font_match::choice_stamped;
 use crate::entry_capture::{CapturedEntry, EntryRenderer, EntryRequest, EntryStage};
 use crate::util::{self, arg, flag, round, to_fixed};
 
@@ -441,62 +440,8 @@ fn gate_spec(io: &Io, state: &Value) -> Gate {
                 .collect(),
         );
     }
-    // text regions sorted by measured cap height (proxy px.h*0.4 when unmeasured)
-    let mut text_regions: Vec<Value> = regions.iter().filter(|r| r.get("kind").and_then(Value::as_str) == Some("text")).cloned().collect();
-    let cap_of = |r: &Value| -> f64 {
-        r.pointer("/type/comp/capHeightPx").and_then(Value::as_f64).unwrap_or_else(|| r.pointer("/px/h").and_then(Value::as_f64).unwrap_or(0.0) * 0.4)
-    };
-    text_regions.sort_by(|a, b| cap_of(b).partial_cmp(&cap_of(a)).unwrap());
-    let mut reasons: Vec<String> = Vec::new();
-    if !text_regions.is_empty() {
-        let ids = text_regions.iter().filter_map(|r| r.get("id").and_then(Value::as_str)).collect::<Vec<_>>().join(", ");
-        let any_measured = text_regions.iter().any(|r| r.get("type").filter(|v| !v.is_null()).is_some());
-        if !any_measured {
-            reasons.push(format!(
-                "measure the type before closing the spec: {s} font-match --measure <id> for each text region ({ids}); the region with the largest cap height is the lead and gets --rank."
-            ));
-            return Gate::fail(reasons);
-        }
-        let measurable: Vec<&Value> = text_regions.iter().filter(|r| r.pointer("/type/comp").filter(|v| !v.is_null()).is_some()).collect();
-        let lead = measurable.first().copied().unwrap_or(&text_regions[0]);
-        let lead_id = lead.get("id").and_then(Value::as_str).unwrap_or("");
-        let has_type = lead.get("type").filter(|v| !v.is_null()).is_some();
-        let type_comp = lead.pointer("/type/comp").filter(|v| !v.is_null());
-        let chosen = lead.pointer("/type/chosen").filter(|v| !v.is_null());
-        if !has_type {
-            reasons.push(format!(
-                "the lead text region {lead_id} has no type measurement: run {s} font-match --measure {lead_id} (and --rank {lead_id} --text \"<its first words>\" to choose the face by metrics). Set font-size from the printed cap height; do not pick a face by name."
-            ));
-        } else if type_comp.is_some() && chosen.is_none() {
-            let wc = lead.pointer("/type/widthClass").and_then(Value::as_str).unwrap_or("");
-            let wt = lead.pointer("/type/weightClass").and_then(Value::as_str).unwrap_or("");
-            let cap = lead.pointer("/type/comp/capHeightPx").map(util::fmt_value).unwrap_or_default();
-            reasons.push(format!(
-                "the lead text region {lead_id} is measured ({wc} {wt}, cap {cap}px) but no face is ranked: run {s} font-match --rank {lead_id} --text \"<its first words>\" [--candidates \"Family:weight,...\"] and use the USE line."
-            ));
-        } else if type_comp.is_some() && chosen.is_some() && !choice_stamped(lead_id, chosen.unwrap()) {
-            let fam = chosen.unwrap().get("family").and_then(Value::as_str).unwrap_or("?");
-            reasons.push(format!(
-                "the lead text region {lead_id} carries a \"chosen\" face that font-match did not write ({fam}). A face typed into spec.json is the guess this gate exists to refuse; run {s} font-match --rank {lead_id} --text \"<its first words>\" and let it record the choice (with no browser it records the catalog's nearest face)."
-            ));
-        }
-        let unmeasured: Vec<String> = text_regions
-            .iter()
-            .skip(1)
-            .filter(|r| r.get("type").filter(|v| !v.is_null()).is_none())
-            .filter_map(|r| r.get("id").and_then(Value::as_str).map(String::from))
-            .collect();
-        if !unmeasured.is_empty() && reasons.is_empty() {
-            reasons.push(format!(
-                "measure the other text regions too, each sets its own font-size and weight class: {s} font-match --measure <id> for {}",
-                unmeasured.join(", ")
-            ));
-        }
-    }
-    if !reasons.is_empty() {
-        return Gate::fail(reasons);
-    }
-    Gate::ok(format!("{} regions, {plates} plates, {} text regions measured", regions.len(), text_regions.len()))
+    let text_regions = regions.iter().filter(|r| r.get("kind").and_then(Value::as_str) == Some("text")).count();
+    Gate::ok(format!("{} regions, {plates} plates, {text_regions} text regions", regions.len()))
 }
 
 
@@ -987,11 +932,12 @@ fn write_scaffold(io: &Io, spec: &Value) -> Scaffold {
     let w = spec.pointer("/compSize/width").and_then(Value::as_i64).unwrap_or(0);
     let h = spec.pointer("/compSize/height").and_then(Value::as_i64).unwrap_or(0);
     let pct = |v: f64| format!("{}%", to_fixed(v * 100.0, 3));
-    let mut vars: Vec<String> = vec![":root {".into()];
+    let mut vars: Vec<String> = vec![
+        ":root {".into(),
+        "  --font-sans: system-ui, sans-serif; --font-serif: ui-serif, serif; --font-mono: ui-monospace, monospace;".into(),
+    ];
     let mut rules: Vec<String> = Vec::new();
     let mut body_parts: Vec<String> = Vec::new();
-    let mut font_links: Vec<String> = Vec::new();
-    let mut seen_links = std::collections::HashSet::new();
     for rr in spec_regions(spec) {
         if rr.get("kind").and_then(Value::as_str) == Some("band") {
             continue;
@@ -1012,22 +958,7 @@ fn write_scaffold(io: &Io, spec: &Value) -> Scaffold {
         };
         if let Some(cap) = cap {
             let font_seg = font_px.map(|f| format!(" --r-{id}-font: {f}px;")).unwrap_or_default();
-            let fam_seg = chosen
-                .map(|c| {
-                    let fam = c.get("family").and_then(Value::as_str).unwrap_or("");
-                    let wt = util::fmt_value(c.get("weight").unwrap_or(&Value::Null));
-                    format!(" --r-{id}-family: '{fam}'; --r-{id}-weight: {wt};")
-                })
-                .unwrap_or_default();
-            vars.push(format!("  --r-{id}-cap: {}px;{font_seg}{fam_seg}", cap as i64));
-        }
-        if let Some(c) = chosen {
-            if let Some(fam) = c.get("family").and_then(Value::as_str) {
-                let key = format!("{fam}:{}", util::fmt_value(c.get("weight").unwrap_or(&Value::Null)));
-                if seen_links.insert(key.clone()) {
-                    font_links.push(key);
-                }
-            }
+            vars.push(format!("  --r-{id}-cap: {}px;{font_seg}", cap as i64));
         }
         rules.push(format!(".r-{id} {{ position: absolute; left: var(--r-{id}-x); top: var(--r-{id}-y); width: var(--r-{id}-w); height: var(--r-{id}-h); }}"));
         let note = rr.get("note").and_then(Value::as_str).unwrap_or(&id);
@@ -1045,7 +976,6 @@ fn write_scaffold(io: &Io, spec: &Value) -> Scaffold {
         } else if kind == "text" {
             let style = [
                 if font_px.is_some() { format!("font-size:var(--r-{id}-font)") } else { String::new() },
-                if chosen.is_some() { format!("font-family:var(--r-{id}-family),sans-serif;font-weight:var(--r-{id}-weight)") } else { String::new() },
                 "line-height:1.05".into(),
                 "margin:0".into(),
             ]
@@ -1072,25 +1002,10 @@ fn write_scaffold(io: &Io, spec: &Value) -> Scaffold {
     let css = css_lines.join("\n");
     let css_path = format!("{dir}/layout.css");
     let _ = std::fs::write(abs(io, &css_path), &css);
-    let link = if !font_links.is_empty() {
-        let fams = font_links
-            .iter()
-            .map(|f| {
-                let parts: Vec<&str> = f.splitn(2, ':').collect();
-                let fam = parts[0];
-                let wt = parts.get(1).copied().unwrap_or("");
-                format!("family={}:wght@{wt}", encode_family(fam))
-            })
-            .collect::<Vec<_>>()
-            .join("&");
-        format!("  <link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?{fams}&display=swap\">\n")
-    } else {
-        String::new()
-    };
     let body_bg = spec.pointer("/palette/0/hex").and_then(Value::as_str).unwrap_or("#fff");
     let comp_name = basename(spec.get("comp").and_then(Value::as_str).unwrap_or(""));
     let html = format!(
-        "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Scaffold reference: {comp_name}</title>\n{link}  <link rel=\"stylesheet\" href=\"layout.css\">\n  <style>html,body{{margin:0}}body{{background:{body_bg}}}.region{{box-sizing:border-box}}.region.text p{{white-space:pre-wrap}}</style>\n</head>\n<body>\n<!-- Reference only. Every region sits at its measured box inside a comp-aspect frame. Take the boxes (layout.css), keep your own semantic structure. -->\n<main class=\"comp-frame\" style=\"max-width:{w}px\">\n{}\n</main>\n</body>\n</html>\n",
+        "<!doctype html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>Scaffold reference: {comp_name}</title>\n  <link rel=\"stylesheet\" href=\"layout.css\">\n  <style>html,body{{margin:0}}body{{background:{body_bg};font-family:var(--font-sans)}}.region{{box-sizing:border-box}}.region.text p{{white-space:pre-wrap}}</style>\n</head>\n<body>\n<!-- Reference only. Every region sits at its measured box inside a comp-aspect frame. Take the boxes (layout.css), keep your own semantic structure. -->\n<main class=\"comp-frame\" style=\"max-width:{w}px\">\n{}\n</main>\n</body>\n</html>\n",
         body_parts.join("\n")
     );
     let html_path = format!("{dir}/hero-reference.html");
@@ -1098,36 +1013,12 @@ fn write_scaffold(io: &Io, spec: &Value) -> Scaffold {
     Scaffold { dir, css: css_path, html: html_path }
 }
 
-fn encode_family(fam: &str) -> String {
-    // encodeURIComponent(fam).replace(/%20/g, '+')
-    let mut out = String::new();
-    for ch in fam.chars() {
-        if ch == ' ' {
-            out.push('+');
-        } else if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '(' | ')') {
-            out.push(ch);
-        } else {
-            let mut buf = [0u8; 4];
-            for b in ch.encode_utf8(&mut buf).bytes() {
-                out.push_str(&format!("%{b:02X}"));
-            }
-        }
-    }
-    out
-}
-
 // ---- hero readings ---------------------------------------------------------
 
 fn region_struct(rr: &Value) -> Region {
-    let chosen = rr.pointer("/type/chosen").filter(|v| !v.is_null()).map(|c| Chosen {
-        family: c.get("family").and_then(Value::as_str).unwrap_or("").to_string(),
-        weight: util::fmt_value(c.get("weight").unwrap_or(&Value::Null)),
-        font_size_px: util::fmt_value(c.get("fontSizePx").unwrap_or(&Value::Null)),
-    });
     Region {
         id: rr.get("id").and_then(Value::as_str).unwrap_or("").to_string(),
         kind: rr.get("kind").and_then(Value::as_str).unwrap_or("").to_string(),
-        chosen,
     }
 }
 
@@ -2946,12 +2837,12 @@ fn next_instruction(io: &Io, state: &Value) -> String {
             format!("Comp round for the chosen direction{dir}: read reference/visualize.md, generate three compositional comps of the requested surface at its own viewport into {MOCKS_DIR}/ (each with a prompt sidecar), put them in front of the user, and set \"approved\": true in the chosen comp's sidecar. Then {s} build-phase advance. No page code before this closes.")
         }
         "spec" => format!(
-            "Measure the comp: {s} comp-spec --comp {comp} --grid, open {}, write regions.json (every illustration, photo, texture as its own plate region; every text block its own text region), run {s} comp-spec --comp {comp} --regions regions.json. Then measure the type: {s} font-match --measure <id> for each text region (cap height, width class, weight class) and {s} font-match --rank <lead text region> --text \"<its first words>\" to choose the headline face by metrics (the USE line is the CSS; with no browser it records the catalog's nearest face, which is the choice; do not install one, and do not write a chosen face into the spec by hand). Then {s} build-phase advance.",
+            "Measure the comp: {s} comp-spec --comp {comp} --grid, open {}, write regions.json (every illustration, photo, texture as its own plate region; every text block its own text region), run {s} comp-spec --comp {comp} --regions regions.json. Then {s} build-phase advance.",
             format!("{BUILD_DIR}/comp-grid.png")
         ),
         "plates" => format!("Produce every plate in the spec ({s} comp-spec --print lists them). For each illustration, photo, or figure, run {s} comp-spec --crop <id> --out <crop.png> and save {s} comp-spec --plate-prompt <id> to a prompt file. For an isolated figure or object on the page ground, add --background transparent to that plate-prompt command. Prefer the harness image tool with the crop as reference and that prompt; request native transparent PNG for cutouts. With the API fallback, run {s} generate-image --ref <crop.png> --prompt-file <prompt.txt> --out <plate.png> --size <WxH> --quality high; add --background transparent for cutouts. Create the output directory first and choose a supported size matching the region's aspect at least 1.5x its pixel size. generate-image embeds the prompt; after a harness generation run {s} embed-prompt <plate.png> --prompt-file <prompt.txt>. Preserve white paint, fine edges, and interior holes; verify alpha and inspect the cutout on light and dark grounds. Do not chroma-key native transparent output. Keep photos and textures opaque. Place cutouts with a plain <img> over the page's own ground; inspect glass and other translucent material carefully. Textures (paper, cloth, grain): crop a clean patch from {s} comp-spec --crop <id> --raw and mirror-tile it to the plate size; generate only when no clean patch exists. The gate scores a texture against its whole region box, so draw its region around clean ground. Keep candidate crops in separate files. Test each with {s} build-phase check-plate <id> --candidate <png> --json; this does not replace the selected asset or advance state. Inspect the candidate before explicitly selecting it at the spec plate path. Then {s} build-phase advance scores all selected plates against their comp regions. A pass does not replace visual inspection of placement, scale, and alpha. Score the plates before the review opens: once advance reports nothing but the pending review, run {s} component-review plan, then {s} component-review capture --manifest .impeccable/review/components.json and {s} component-review serve --session <session>, and wait for the user: advance also waits until they accept this plan and asset review for the current spec. A plate replaced after they accept needs a new round. Write no page code before this passes."),
         "hero" => format!(
-            "Run {s} build-phase scaffold first: it writes the measured layout as CSS custom properties (.impeccable/build/scaffold/layout.css, --r-<id>-x/y/w/h in % of the comp, plus cap height, font-size, family, and weight where measured) and a reference page with every region at its box. Bind those numbers to your own markup (an element per region, its box from the properties); the reference is a check, not the page, and overlapping boxes are overlapping boxes. Build only the first viewport at {}. Copy the comp's words verbatim in this phase (headline, labels, table cells, footer): the user approved that comp with those words, and rewriting is a later, stated decision, never a silent one here. Set every text region's font-size from its measured cap height and its face from the ranking. Plates first: place every plate at its spec box ({s} comp-spec --print lists boxes as percentages of the viewport) with object-fit: cover before writing a line of text or a control, capture into {HERO_REPRO}, and run {s} build-phase record hero (not advance) once so you see the plate regions read as match before text exists; then lay the semantic layer (text, controls, rules) over the plates from the spec's palette and boxes, capture, advance. When it fails, open the region crops it lists first, in order, then fix; do not build past the hero until it passes.",
+            "Run {s} build-phase scaffold first: it writes the measured layout as CSS custom properties (.impeccable/build/scaffold/layout.css, --r-<id>-x/y/w/h in % of the comp, plus cap height and font-size where measured, and system font stacks --font-sans/--font-serif/--font-mono) and a reference page with every region at its box. Bind those numbers to your own markup (an element per region, its box from the properties); the reference is a check, not the page, and overlapping boxes are overlapping boxes. Build only the first viewport at {}. Copy the comp's words verbatim in this phase (headline, labels, table cells, footer): the user approved that comp with those words, and rewriting is a later, stated decision, never a silent one here. Set every text region's font-size so its cap height matches the comp, using the system font stacks; do not pick or load a font family. Plates first: place every plate at its spec box ({s} comp-spec --print lists boxes as percentages of the viewport) with object-fit: cover before writing a line of text or a control, capture into {HERO_REPRO}, and run {s} build-phase record hero (not advance) once so you see the plate regions read as match before text exists; then lay the semantic layer (text, controls, rules) over the plates from the spec's palette and boxes, capture, advance. When it fails, open the region crops it lists first, in order, then fix; do not build past the hero until it passes.",
             bp.unwrap_or("the comp size")
         ),
         "sections" => format!("Build the remaining sections inside the spec system (same corner language, rules, and palette; nothing the comp does not show). The hero passed with the comp's words verbatim; from here, content beyond the comp is yours to author at full fidelity, and any change to words the comp showed is a stated decision in your report, never silent. Then {s} build-phase advance."),
@@ -3511,8 +3402,8 @@ pub fn run_with_renderer(argv: &[String],io: &mut Io,organic_scan: OrganicScan,r
                 format!("{w}x{h}")
             });
             io.out(&format!("SCAFFOLD {}\n", out.dir));
-            io.out(&format!("  {}   one custom property set per region (--r-<id>-x/y/w/h in % of the comp; --r-<id>-cap, --r-<id>-font, --r-<id>-weight where measured); bind these to your own markup\n", out.css));
-            io.out(&format!("  {}  a reference page: every region positioned at its box inside a {bp} frame, plates placed with object-fit: contain, text slots at the measured cap height in the ranked face\n", out.html));
+            io.out(&format!("  {}   one custom property set per region (--r-<id>-x/y/w/h in % of the comp; --r-<id>-cap, --r-<id>-font where measured; --font-sans/--font-serif/--font-mono system stacks); bind these to your own markup\n", out.css));
+            io.out(&format!("  {}  a reference page: every region positioned at its box inside a {bp} frame, plates placed with object-fit: contain, text slots at the measured cap height in the system sans stack\n", out.html));
             io.out("  The reference is a check, not the page: keep your own semantic structure and bind the numbers to it (an element per region, its box from the properties). Overlapping boxes are overlapping boxes. What the gate reads is pixels; a page that lands each region at its box passes whatever markup it uses.\n");
             0
         }
