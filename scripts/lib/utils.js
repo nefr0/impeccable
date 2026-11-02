@@ -10,10 +10,9 @@ import { PROVIDERS } from './transformers/providers.js';
 //   New installs write project config at .impeccable/live/config.json instead.
 export const PER_PROJECT_SCRIPT_ARTIFACTS = new Set(['config.json']);
 
-// Platform binaries under `scripts/bin/<os>-<arch>/` are fetched per machine
-// (scripts/fetch-engine.mjs) and never part of the source skill read: the
-// release build stages them into provider output separately, and the launcher
-// downloads them on first run when they are absent.
+// Platform binaries under `scripts/bin/<os>-<arch>/` are built per machine
+// and never part of the source skill read: they are built locally from the
+// Rust workspace and found by the launcher.
 export const SKILL_BINARY_DIR = 'bin';
 
 // Walk the harness-dir skill tree and return any per-project script

@@ -91,11 +91,7 @@ describe('release.mjs guards', () => {
 
     fs.mkdirSync(path.join(workDir, 'scripts'));
     fs.copyFileSync(RELEASE_SCRIPT, path.join(workDir, 'scripts', 'release.mjs'));
-    // release.mjs imports ./check-engine-release.mjs and ./fetch-engine.mjs
-    // (and check-engine-release.mjs imports fetch-engine.mjs), so stage them
-    // too or the dry runs fail to resolve the modules instead of exercising
-    // the guard.
-    for (const dep of ['check-engine-release.mjs', 'fetch-engine.mjs', 'sign-bundle.mjs', 'bundle-signing-keys.json']) {
+    for (const dep of ['sign-bundle.mjs', 'bundle-signing-keys.json']) {
       fs.copyFileSync(path.join(REPO_ROOT, 'scripts', dep), path.join(workDir, 'scripts', dep));
     }
     write('.claude-plugin/plugin.json', JSON.stringify({ name: 'impeccable', version: '1.2.3' }));
@@ -103,7 +99,6 @@ describe('release.mjs guards', () => {
     write('package.json', JSON.stringify({
       name: 'impeccable',
       version: '9.9.9',
-      optionalDependencies: { '@impeccable/cli-darwin-arm64': '0.1.0', '@impeccable/cli-linux-x64': '0.1.0' },
     }));
     write('ENGINE_VERSION', '0.1.0\n');
     write('extension/manifest.json', JSON.stringify({ version: '2.0.0' }));
@@ -146,20 +141,9 @@ describe('release.mjs guards', () => {
     const { code, stdout } = runRelease(workDir, 'engine');
     assert.equal(code, 0, stdout);
     assert.match(stdout, /Engine 0\.1\.0/);
-    assert.match(stdout, /2 platform package pins agree/);
     assert.match(stdout, /\[dry-run\] git tag -a engine-v0\.1\.0/);
     assert.match(stdout, /\[dry-run\] git push origin engine-v0\.1\.0/);
     assert.doesNotMatch(stdout, /gh release create/);
-    assert.match(stdout, /release-engine workflow/);
-  });
-
-  it('engine: refuses when package.json platform pins disagree with ENGINE_VERSION', () => {
-    write('ENGINE_VERSION', '0.2.0\n');
-    git(workDir, 'commit', '-am', 'bump engine');
-    git(workDir, 'push', 'origin', 'main');
-    const { code, stderr } = runRelease(workDir, 'engine');
-    assert.notEqual(code, 0);
-    assert.match(stderr, /pins @impeccable\/cli-darwin-arm64@0\.1\.0.*expected 0\.2\.0/);
   });
 
   it('engine: refuses when the tag already exists on origin', () => {

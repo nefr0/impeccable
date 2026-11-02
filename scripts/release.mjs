@@ -5,8 +5,7 @@
 // Usage: node scripts/release.mjs <skill|cli|extension|engine> [--dry-run]
 //
 // `engine` is different: it only tags `engine-v<ENGINE_VERSION>` and pushes the
-// tag; .github/workflows/release-engine.yml builds the five binaries and
-// publishes the GitHub Release. It has no changelog entry and no local
+// tag; the engine is built from source. It has no changelog entry and no local
 // artifacts.
 //
 // Refuses on a dirty tree, an unpushed HEAD, or a missing changelog entry.
@@ -333,28 +332,6 @@ try {
 
 console.log(`\n✓ ${cfg.label} ${version} released as ${tag}`);
 
-// npx impeccable install/update serve the version named by impeccable-site's
-// published-skill.json, a signed pointer that never follows this release on
-// its own. Redeploying alone republishes the old pointer. Warn loudly when the
-// served version lags so a release never silently strands update users on old
-// content again (the 4.0.0 release did exactly that).
-if (component === 'skill' && !dryRun) {
-  try {
-    const res = await fetch('https://impeccable.style/api/version');
-    const served = (await res.json()).skills;
-    if (served === version) {
-      console.log(`✓ impeccable.style serves ${served}`);
-    } else {
-      console.log(`\n⚠ impeccable.style still serves ${served}, not ${version}.`);
-      console.log('  npx impeccable install/update serve the OLD version until the site\'s signed pointer moves.');
-      console.log(`  In impeccable-site, on a branch from main: bun run skill:publish-pointer ${version}`);
-      console.log('  Commit published-skill.json and merge it to main; the main deploy then serves the new version.');
-      console.log('  If the pointer already names this version, check the site\'s main deploy: wait if it is running, fix it if it failed.');
-    }
-  } catch {
-    console.log('⚠ could not reach impeccable.style/api/version to verify the served bundle');
-  }
-}
 if (cfg.postReleaseHint) {
   console.log(`\n→ Next step: ${cfg.postReleaseHint}`);
 }
@@ -435,8 +412,7 @@ function htmlToMarkdown(html) {
 
 
 // The engine release: verify, tag, push. CI does the building and publishing
-// (release-engine.yml), so the maintainer's machine never needs five
-// toolchains. The whole workspace builds from source, so there is nothing to
+// (the whole workspace builds from source, so there is nothing to
 // fetch and nothing to order ahead of it.
 async function releaseEngine() {
   step('Reading version from ENGINE_VERSION');

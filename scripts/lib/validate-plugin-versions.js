@@ -122,13 +122,13 @@ export function collectPluginVersions(rootDir) {
     {
       // The npm CLI shares the skill's version: one number for users to read
       // off npm, the plugin and the changelog. Only this repo's package.json is
-      // the CLI, and it is the one that pins the engine's platform packages:
+      // the CLI, and it is the one whose bin is the shim:
       // impeccable-site builds the skill from a tree whose root package.json is
       // the site's own, also named impeccable, at its own version.
       relPath: 'package.json',
       read: (raw) => {
         const pkg = JSON.parse(raw);
-        const isCli = Object.keys(pkg.optionalDependencies || {}).some((k) => k.startsWith('@impeccable/cli-'));
+        const isCli = pkg.bin?.impeccable === 'cli/bin/cli.js';
         return isCli ? pkg.version : SKIP;
       },
     },

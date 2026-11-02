@@ -790,16 +790,7 @@ function ensureCursorAgent() {
   });
   if (version.status === 0) return;
 
-  run('/bin/bash', ['-c', '/usr/bin/curl https://cursor.com/install -fsS | /bin/bash'], {
-    cwd: targetRepo,
-    logName: 'cursor-agent-install.log',
-    timeoutMs: 5 * 60 * 1000,
-  });
-  run('agent', ['--version'], {
-    cwd: targetRepo,
-    logName: 'cursor-agent-version-after.log',
-    timeoutMs: 60 * 1000,
-  });
+  throw new Error('cursor agent CLI is not installed; install it locally and retry (this script does not download installers)');
 }
 
 function writeBadFixture(rel) {

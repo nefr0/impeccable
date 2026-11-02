@@ -61,11 +61,11 @@ describe('collectPluginVersions', () => {
 
   test('flags an npm package.json whose version drifted from the skill', () => {
     writeFixture(root, { plugin: '3.7.1', marketplace: '3.7.1' });
-    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'impeccable', version: '3.6.0', optionalDependencies: { '@impeccable/cli-darwin-arm64': '0.1.14' } }));
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'impeccable', version: '3.6.0', bin: { impeccable: 'cli/bin/cli.js' } }));
     const { mismatches } = collectPluginVersions(root);
     expect(mismatches).toEqual([{ relPath: 'package.json', found: '3.6.0', expected: '3.7.1' }]);
 
-    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'impeccable', version: '3.7.1', optionalDependencies: { '@impeccable/cli-darwin-arm64': '0.1.14' } }));
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'impeccable', version: '3.7.1', bin: { impeccable: 'cli/bin/cli.js' } }));
     expect(collectPluginVersions(root).mismatches).toEqual([]);
   });
 

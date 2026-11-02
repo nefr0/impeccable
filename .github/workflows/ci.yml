@@ -192,7 +192,7 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
-  # The engine ships a windows-x64 binary (release-engine.yml), so the
+  # The engine ships a windows-x64 binary (built from source), so the
   # workspace has to build and pass its own tests there. Tests that need a
   # browser or the oracle skip when those are absent.
   rust-windows:
@@ -236,20 +236,6 @@ jobs:
           }
           exit 0
       - run: cargo test --workspace --no-fail-fast
-
-  launcher-windows:
-    runs-on: windows-latest
-    needs: changes
-    if: needs.changes.outputs.core == 'true'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Setup Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-      - name: Exercise Windows launcher downloads and verification
-        run: node --test tests/launcher-download.test.mjs
 
   # The npm package ships only the shim (cli/bin/cli.js), and npm skips
   # `latest` for a Node its engines reject, serving the newest version that
@@ -323,37 +309,6 @@ jobs:
         env:
           IMPECCABLE_BIN: ${{ github.workspace }}/target/release/impeccable
         run: node --test --test-timeout=180000 tests/new-work-e2e.test.mjs tests/review-theme.test.mjs
-
-  # Release-order guard (triage decision D4). Verifies that the engine release for
-  # the pinned ENGINE_VERSION is fully published — the five dist binaries + .sha256
-  # AND the five @impeccable/cli-<os>-<arch> npm platform packages — before a skill
-  # release/merge that depends on them. The launcher, npm shim, and
-  # `impeccable install` all dead-end without those assets.
-  #
-  # A hard gate since engine-v0.1.0 shipped: the assets for the pinned
-  # ENGINE_VERSION must exist before a skill/CLI release or a merge that bumps the
-  # pin, or the launcher, the npm shim and `impeccable install` dead-end.
-  # release.mjs hard-fails `release:skill`/`release:cli` on the same check.
-  engine-release-ready:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-
-      - name: Check engine release assets for pinned ENGINE_VERSION
-        id: check
-        run: node scripts/check-engine-release.mjs
-
-      - name: Annotate missing engine release
-        # Only when the check itself failed, so a checkout or setup failure keeps its own error.
-        if: failure() && steps.check.outcome == 'failure'
-        run: |
-          echo "::error title=Engine release not ready::The engine release for v$(cat ENGINE_VERSION) is not fully published (engine-v$(cat ENGINE_VERSION) release assets and/or the @impeccable/cli-<os>-<arch> npm platform packages). Publish the engine (bun run release:engine) and the platform packages (bun run release:platform-packages) before bumping ENGINE_VERSION on main or releasing the skill/CLI. If only engine-checksums.txt is named, run node scripts/check-engine-release.mjs --record and commit it."
 
   test:
     runs-on: ubuntu-latest
