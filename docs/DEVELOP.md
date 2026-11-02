@@ -181,7 +181,7 @@ impeccable/
   skill/                           # Edit these! Source of truth
     SKILL.src.md                   # Frontmatter, shared design laws, command router
     reference/                     # One <command>.md per command + domain references
-    scripts/                       # Skill runtime scripts (hooks, context.mjs, etc.)
+    scripts/                       # Engine assets (not called by the skill)
     agents/                        # Nested subagent definitions
   cli/                             # Standalone `impeccable` CLI (npm package)
   site/                            # impeccable.style (Astro)
@@ -202,7 +202,6 @@ impeccable/
   docs/
     HARNESSES.md                   # Provider capabilities reference
     STYLE.md                       # Editorial style guide
-    adr-live-variant-mode.md       # Live mode architecture decision record
     DEVELOP.md                     # This file
   README.md                        # User documentation
 ```
