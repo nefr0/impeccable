@@ -57,7 +57,7 @@ const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 const IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 
 fn download_agent(connect: std::time::Duration, idle: std::time::Duration) -> ureq::AgentBuilder {
-    impeccable_context::http::agent_builder()
+    ureq::AgentBuilder::new()
         .timeout_connect(connect)
         .timeout_read(idle)
         .timeout_write(idle)
