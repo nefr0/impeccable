@@ -2,7 +2,7 @@
 
 > Standalone CLI; the skill does not call it. This fork publishes nothing to npm and downloads no binaries.
 
-Detect UI anti-patterns and design quality issues from the command line. The detector scans HTML, CSS, JSX, TSX, Vue, and Svelte files for 62 deterministic rules, including AI-generated UI tells, accessibility violations, and general design quality problems.
+Detect UI anti-patterns and design quality issues from the command line. The detector scans HTML, CSS, JSX, TSX, Vue, and Svelte files for 59 deterministic rules, including AI-generated UI tells, accessibility violations, and general design quality problems.
 
 The `cli/` shim runs the `impeccable` engine binary that you build locally.
 
@@ -47,7 +47,7 @@ To install the skill itself, build it with `bun run build` and copy it from `dis
 
 **Quality**: tiny body text, cramped padding, long line lengths, small touch targets
 
-62 deterministic detector rules in total. See the full catalog at [impeccable.style/slop](https://impeccable.style/slop).
+59 deterministic detector rules in total. See the full catalog at [impeccable.style/slop](https://impeccable.style/slop).
 
 ## Exit Codes
 
