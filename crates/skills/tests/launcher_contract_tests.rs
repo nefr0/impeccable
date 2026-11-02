@@ -6,7 +6,6 @@
 //! that made its download path dead code), both launchers carry the
 //! engine-probe handshake, and the .cmd verifies downloads via certutil.
 
-use impeccable_skills::engine_binary::{asset_url, DEFAULT_DOWNLOAD_BASE};
 
 /// The launchers ship next to the skill they power.
 fn launcher_dir() -> String {
@@ -16,45 +15,6 @@ fn launcher_dir() -> String {
 fn launcher_file(name: &str) -> String {
     let path = format!("{}/{name}", launcher_dir());
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {path}: {e}"))
-}
-
-#[test]
-fn sh_launcher_asset_naming_matches_engine() {
-    let sh = launcher_file("impeccable");
-    // The composed URL is <base>/engine-v<version>/impeccable-<os>-<arch>[.exe].
-    assert!(sh.contains(&format!("IMPECCABLE_DOWNLOAD_BASE:-{DEFAULT_DOWNLOAD_BASE}")));
-    assert!(sh.contains(r#"asset="impeccable-$os-$arch""#));
-    assert!(sh.contains(r#"url="$base/engine-v$version/$asset""#));
-    // Windows-on-ARM fallback, same naming the engine computes.
-    let win_x64 = asset_url(DEFAULT_DOWNLOAD_BASE, "V", "windows", "x64");
-    assert!(win_x64.ends_with("/engine-vV/impeccable-windows-x64.exe"));
-    assert!(sh.contains(r#"url="$base/engine-v$version/impeccable-windows-x64.exe""#));
-    // The PATH and unversioned home candidates are probed.
-    assert!(sh.contains("engine-probe"));
-    assert!(sh.contains(r#"probe_ok "$home_bin""#));
-    assert!(sh.contains("probe_ok impeccable"));
-    // The final error must not recommend the npm package (it still serves 3.x).
-    assert!(!sh.contains("npm i -g"));
-    assert!(!sh.contains("npm install"));
-}
-
-#[test]
-fn cmd_launcher_asset_naming_matches_engine() {
-    let cmd = launcher_file("impeccable.cmd");
-    assert!(cmd.contains(DEFAULT_DOWNLOAD_BASE));
-    // URL construction: expanded on straight-line statements, no blocks.
-    assert!(cmd.contains(r#"set "asset=impeccable-windows-%arch%.exe""#));
-    assert!(cmd.contains(r#"set "url=%IMPECCABLE_DOWNLOAD_BASE%/engine-v%version%/%asset%""#));
-    // arm64 falls back to the x64 asset (Windows on ARM runs x64 binaries).
-    assert!(cmd.contains(r#"set "asset=impeccable-windows-x64.exe""#));
-    assert!(cmd.contains(r#"if /I "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "arch=arm64""#));
-    // sha256 verification via certutil against the committed manifest.
-    assert!(cmd.contains("certutil -hashfile"));
-    assert!(cmd.contains("engine-checksums.txt"));
-    // engine-probe handshake for PATH / unversioned home candidates.
-    assert!(cmd.contains("engine-probe"));
-    assert!(cmd.contains(r#"findstr /b /c:"impeccable-engine""#));
-    assert!(!cmd.contains("npm i -g"));
 }
 
 #[test]
@@ -119,20 +79,6 @@ fn launchers_fail_closed_on_missing_checksum() {
         assert!(text.contains("cannot verify the cached engine"));
         assert!(text.contains("checksum mismatch downloading"));
     }
-}
-
-#[test]
-fn launchers_reference_the_same_release_channel() {
-    let sh = launcher_file("impeccable");
-    let cmd = launcher_file("impeccable.cmd");
-    for text in [&sh, &cmd] {
-        assert!(text.contains("https://github.com/pbakaus/impeccable/releases"));
-    }
-    // Spot-check the engine's own URL builder against the launcher template.
-    assert_eq!(
-        asset_url(DEFAULT_DOWNLOAD_BASE, "1.2.3", "darwin", "arm64"),
-        format!("{DEFAULT_DOWNLOAD_BASE}/engine-v1.2.3/impeccable-darwin-arm64")
-    );
 }
 
 #[test]

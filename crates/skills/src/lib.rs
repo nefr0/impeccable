@@ -6,12 +6,9 @@
 //! Deliberate departures from the original JS behavior:
 //!
 //! 1. After a skill directory is written (fresh install, refresh, update), if
-//!    its `scripts/VERSION` exists and `scripts/bin/<os>-<arch>/impeccable`
-//!    does not, the matching engine binary is downloaded from this repo's
-//!    `engine-v<version>` GitHub Release (`IMPECCABLE_DOWNLOAD_BASE` overrides
-//!    the base URL), verified against the skill dir's own
-//!    `scripts/engine-checksums.txt`, so the installed skill is
-//!    self-contained. See `engine_binary`.
+//! its `scripts/VERSION` exists and `scripts/bin/<os>-<arch>/impeccable`
+//! does not, the engine binary is copied from `IMPECCABLE_BIN` or the running
+//! executable. See `engine_binary`.
 //! 2. Hook manifests are rewritten to invoke the launcher
 //!    (`"<skill>/scripts/impeccable" hook`, `impeccable.cmd` in the Codex
 //!    `commandWindows` sibling) instead of `node "<skill>/scripts/hook.mjs"`.
@@ -19,16 +16,14 @@
 //!    (`impeccable_hook::admin`) writes, and both paths recognize a manifest
 //!    entry as ours through `impeccable_context::hook_markers`, so the two
 //!    never drift on detection. See `hook_manifest`.
-//! 3. Remote skill ZIPs require an Ed25519 signature from a compiled-in key
-//!    before extraction. Failure is fatal even when an existing install is
-//!    present. Explicit local bundle overrides remain unsigned development
-//!    inputs. See `bundle_signature` and docs/BUNDLE-SIGNING.md.
+//! 3. No network: the skill bundle comes from `IMPECCABLE_BUNDLE_PATH` or the
+//!    local `dist/universal` that `bun run build` writes, and `help` reads the
+//!    embedded command metadata. See `bundle`.
 //!
 //! Everything else (messages, exit codes, endpoints, flags, prompts, file
 //! layout) follows the JS byte for byte.
 
 pub mod bundle;
-mod bundle_signature;
 pub mod commands;
 pub mod engine_binary;
 pub mod hook_manifest;
