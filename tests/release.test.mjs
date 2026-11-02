@@ -435,7 +435,7 @@ describe('release.mjs engine source paths', () => {
       }
     }
 
-    assert.ok(embedded.has('scripts/bundle-signing-keys.json'), 'the scan found none of the known embeds');
+    assert.ok(embedded.has('skill/scripts/live-browser.js'), 'the scan found none of the known embeds');
     assert.deepEqual([...embedded].filter((f) => !covered.has(f)), []);
   });
 });
