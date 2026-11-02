@@ -81,86 +81,6 @@ pub const BORDER_SAFE_TAGS: &[&str] = &[
     "use",
 ];
 
-/// JS `OVERUSED_FONTS`.
-pub const OVERUSED_FONTS: &[&str] = &[
-    // Older monoculture (still ubiquitous):
-    "inter",
-    "roboto",
-    "open sans",
-    "lato",
-    "montserrat",
-    "arial",
-    "helvetica",
-    // Newer monoculture (the Anthropic-skill / Vercel / GitHub default wave):
-    "fraunces",
-    "instrument sans",
-    "instrument serif",
-    "geist",
-    "geist sans",
-    "geist mono",
-    "mona sans",
-    "plus jakarta sans",
-    "space grotesk",
-    "recoleta",
-];
-
-/// The [`OVERUSED_FONTS`] entry a lowercased face name spells, ignoring
-/// spaces, hyphens and underscores: the `geist` npm package registers its
-/// face as `GeistSans`, and a page can carry both that and `Geist Sans`.
-/// `None` for a face not on the list.
-pub fn overused_font_name(face: &str) -> Option<&'static str> {
-    let squash = |s: &str| -> String { s.chars().filter(|c| !matches!(c, ' ' | '-' | '_')).collect() };
-    let key = squash(face);
-    if key.is_empty() {
-        return None;
-    }
-    OVERUSED_FONTS.iter().copied().find(|f| squash(f) == key)
-}
-
-/// JS `GOOGLE_DOMAINS`.
-pub const GOOGLE_DOMAINS: &[&str] = &[
-    "google.com",
-    "youtube.com",
-    "android.com",
-    "chromium.org",
-    "chrome.com",
-    "web.dev",
-    "gstatic.com",
-    "firebase.google.com",
-];
-/// JS `VERCEL_DOMAINS`.
-pub const VERCEL_DOMAINS: &[&str] = &["vercel.com", "nextjs.org", "v0.app"];
-/// JS `GITHUB_DOMAINS`.
-pub const GITHUB_DOMAINS: &[&str] = &["github.com", "githubnext.com"];
-
-/// JS `BRAND_FONT_DOMAINS`: font name -> hostname suffixes where it is allowed.
-pub const BRAND_FONT_DOMAINS: &[(&str, &[&str])] = &[
-    ("roboto", GOOGLE_DOMAINS),
-    ("google sans", GOOGLE_DOMAINS),
-    ("product sans", GOOGLE_DOMAINS),
-    ("geist", VERCEL_DOMAINS),
-    ("geist sans", VERCEL_DOMAINS),
-    ("geist mono", VERCEL_DOMAINS),
-    ("mona sans", GITHUB_DOMAINS),
-];
-
-/// JS `isBrandFontOnOwnDomain(font)`. The JS reads the global `location`;
-/// here the caller passes `location.hostname` (`None` when there is no
-/// `location`, i.e. outside a browser), which the JS treats as "not on its
-/// own domain".
-pub fn is_brand_font_on_own_domain(font: &str, hostname: Option<&str>) -> bool {
-    let Some(hostname) = hostname else {
-        return false;
-    };
-    let Some((_, allowed)) = BRAND_FONT_DOMAINS.iter().find(|(name, _)| *name == font) else {
-        return false;
-    };
-    let host = crate::js::to_lower_case(hostname);
-    allowed
-        .iter()
-        .any(|suffix| host == *suffix || host.ends_with(&format!(".{}", suffix)))
-}
-
 /// JS `CSS_GENERIC_FONTS`. Overused-font primary selection skips only CSS
 /// generics so a system stack keeps the system face as primary.
 pub const CSS_GENERIC_FONTS: &[&str] = &[
@@ -257,30 +177,5 @@ mod tests {
             .filter(|t| *t != "label")
             .collect();
         assert_eq!(BORDER_SAFE_TAGS, expected.as_slice());
-    }
-
-    #[test]
-    fn brand_font_domains() {
-        assert!(is_brand_font_on_own_domain(
-            "roboto",
-            Some("Fonts.Google.com")
-        ));
-        assert!(is_brand_font_on_own_domain("geist", Some("vercel.com")));
-        assert!(!is_brand_font_on_own_domain("geist", Some("notvercel.com")));
-        assert!(!is_brand_font_on_own_domain("inter", Some("google.com")));
-        assert!(!is_brand_font_on_own_domain("roboto", None));
-    }
-
-    #[test]
-    fn overused_font_name_merges_spellings() {
-        assert_eq!(overused_font_name("geistsans"), Some("geist sans"));
-        assert_eq!(overused_font_name("geist sans"), Some("geist sans"));
-        assert_eq!(overused_font_name("geist-mono"), Some("geist mono"));
-        assert_eq!(overused_font_name("space_grotesk"), Some("space grotesk"));
-        assert_eq!(overused_font_name("plusjakartasans"), Some("plus jakarta sans"));
-        assert_eq!(overused_font_name("inter"), Some("inter"));
-        assert_eq!(overused_font_name("intertight"), None);
-        assert_eq!(overused_font_name("geistsans fallback"), None);
-        assert_eq!(overused_font_name(""), None);
     }
 }

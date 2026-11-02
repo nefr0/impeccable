@@ -28,11 +28,11 @@ use crate::checks::measures::{
 };
 use crate::checks::rules::{
     check_borders, check_colors, check_colors_deduped, check_colors_deduped_claiming, check_glow,
-    check_hero_eyebrow, check_icon_tile, check_italic_serif, check_motion,
+    check_hero_eyebrow, check_icon_tile, check_motion,
     check_placeholder_colors, check_stripe_child, is_close_letter_text, is_emoji_only_text,
     is_glyph_only_text, is_icon_ligature_text, is_rounded_away_from_side, names_close_control,
     text_fill_is_transparent, BorderOpts, ColorOpts, Corners, GlowOpts, HeroEyebrowOpts,
-    IconTileOpts, ItalicSerifOpts, MotionOpts, PairClaim, RuleHit, SafeTagTextSeen, Sides,
+    IconTileOpts, MotionOpts, PairClaim, RuleHit, SafeTagTextSeen, Sides,
     HEADING_TAGS,
 };
 use crate::checks::text_rules::{
@@ -3467,38 +3467,6 @@ fn shadow_ring_px(box_shadow: &str) -> f64 {
         .fold(0.0, math_max)
 }
 
-/// JS: checks.mjs#checkElementItalicSerifDOM(el)
-pub fn check_element_italic_serif_dom(dom: &dyn Dom, el: ElId) -> Vec<RuleHit> {
-    let tag = tag_lower(dom, el);
-    if tag != "h1" && tag != "h2" {
-        return Vec::new();
-    }
-    // Computed typography belongs to the element that owns the text. A
-    // roman heading can contain italic display text (and vice versa).
-    let mut pending = vec![el];
-    while let Some(node) = pending.pop() {
-        if !is_rendered_for_browser_rule(dom, node) {
-            continue;
-        }
-        if !js::trim(&direct_text(dom, node)).is_empty() {
-            let hits = check_italic_serif(&ItalicSerifOpts {
-                tag: tag.clone(),
-                font_style: Some(dom.style(node, "fontStyle")),
-                font_family: Some(dom.style(node, "fontFamily")),
-                font_size: style_px(dom, node, "fontSize"),
-                heading_text: Some(dom.text_content(el)),
-            });
-            if !hits.is_empty() {
-                // Attribute one finding to the heading, even if several
-                // descendants contribute italic display text.
-                return hits;
-            }
-        }
-        pending.extend(dom.children(node).into_iter().rev());
-    }
-    Vec::new()
-}
-
 /// JS: checks.mjs#domAccentDashPseudo(el)
 pub fn dom_accent_dash_pseudo(dom: &dyn Dom, el: ElId) -> bool {
     for which in PSEUDOS {
@@ -6608,49 +6576,6 @@ mod tests {
         d.set_attr(btn, "disabled", "");
         d.add_selector(btn, "[disabled], [aria-disabled=\"true\"]");
         assert!(colors(&d, btn).iter().all(|h| h.id != "low-contrast"), "{:?}", colors(&d, btn));
-    }
-
-    #[test]
-    fn italic_serif_checks_visible_heading_text_including_inline_children() {
-        let (mut d, body) = page();
-        let h = d.add(Some(body), "h1");
-        d.add_text(h, "Some places stay with ");
-        d.set_styles(h, &[("fontStyle", "normal"), ("fontFamily", "Georgia, serif"), ("fontSize", "72px")]);
-        let em = d.add(Some(h), "em");
-        d.add_text(em, "you");
-        d.set_styles(em, &[("fontStyle", "italic"), ("fontFamily", "Georgia, serif"), ("fontSize", "72px")]);
-        let hits = check_element_italic_serif_dom(&d, h);
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].id, "italic-serif-display");
-        // A second decorated word still produces one heading warning.
-        let span = d.add(Some(h), "span");
-        d.add_text(span, "forever");
-        d.set_styles(span, &[("fontStyle", "italic"), ("fontFamily", "Georgia, serif"), ("fontSize", "72px")]);
-        assert_eq!(check_element_italic_serif_dom(&d, h).len(), 1);
-        d.set_style(span, "fontStyle", "normal");
-        for (property, value) in [("display", "none"), ("visibility", "hidden"), ("opacity", "0"), ("fontSize", "24px"), ("fontFamily", "Arial, sans-serif"), ("fontStyle", "normal")] {
-            let old = d.style(em, property);
-            d.set_style(em, property, value);
-            assert!(check_element_italic_serif_dom(&d, h).is_empty(), "{property}: {value}");
-            d.set_style(em, property, &old);
-        }
-        d.set_style(h, "display", "none");
-        assert!(check_element_italic_serif_dom(&d, h).is_empty());
-    }
-
-    #[test]
-    fn italic_serif_uses_text_styles_not_an_overridden_parent() {
-        let (mut d, body) = page();
-        let h = d.add(Some(body), "h2");
-        d.add_text(h, "  ");
-        d.set_styles(h, &[("fontStyle", "italic"), ("fontFamily", "Georgia, serif"), ("fontSize", "72px")]);
-        let span = d.add(Some(h), "span");
-        d.add_text(span, "Roman headline");
-        d.set_styles(span, &[("fontStyle", "normal"), ("fontFamily", "Georgia, serif"), ("fontSize", "72px")]);
-        assert!(check_element_italic_serif_dom(&d, h).is_empty());
-        d.set_style(span, "fontStyle", "italic");
-        assert_eq!(check_element_italic_serif_dom(&d, h).len(), 1);
-        assert!(check_element_italic_serif_dom(&d, span).is_empty());
     }
 
     #[test]

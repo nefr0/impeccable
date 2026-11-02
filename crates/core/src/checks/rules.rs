@@ -9,7 +9,7 @@ use crate::color::{
     is_neutral_color, lightness_saturation, relative_luminance, Rgba, GRAY_INK_MAX_LIGHTNESS,
 };
 use crate::constants::{
-    BORDER_SAFE_TAGS, GENERIC_FONTS, KNOWN_SERIF_FONTS, SAFE_TAGS, WCAG_LARGE_BOLD_TEXT_PX,
+    BORDER_SAFE_TAGS, SAFE_TAGS, WCAG_LARGE_BOLD_TEXT_PX,
     WCAG_LARGE_TEXT_PX,
 };
 use crate::js::{
@@ -1751,93 +1751,6 @@ pub fn check_icon_tile(opts: &IconTileOpts) -> Vec<RuleHit> {
             number_to_string(math_round(w)),
             number_to_string(math_round(h)),
             opts.heading_tag,
-            text
-        ),
-    )]
-}
-
-/// JS `f.trim().replace(/^['"]|['"]$/g, '')`.
-fn strip_font_quotes(f: &str) -> &str {
-    let t = js::trim(f);
-    let is_quote = |b: u8| b == b'\'' || b == b'"';
-    let bytes = t.as_bytes();
-    let start = if !bytes.is_empty() && is_quote(bytes[0]) {
-        1
-    } else {
-        0
-    };
-    let end = if bytes.len() > start && is_quote(bytes[bytes.len() - 1]) {
-        bytes.len() - 1
-    } else {
-        bytes.len()
-    };
-    &t[start..end]
-}
-
-/// JS: checks.mjs#resolveSerif
-pub fn resolve_serif(font_family: Option<&str>) -> SerifResolution {
-    let none = SerifResolution {
-        primary: None,
-        is_serif: false,
-    };
-    let ff = match font_family {
-        None | Some("") => return none,
-        Some(s) => s,
-    };
-    let tokens: Vec<String> = ff
-        .split(',')
-        .map(|f| js::to_lower_case(strip_font_quotes(f)))
-        .collect();
-    let primary = tokens
-        .iter()
-        .find(|f| !f.is_empty() && !set_has(GENERIC_FONTS, f))
-        .cloned();
-    let primary = match primary {
-        None => return none,
-        Some(p) => p,
-    };
-    if set_has(KNOWN_SERIF_FONTS, &primary) {
-        return SerifResolution {
-            primary: Some(primary),
-            is_serif: true,
-        };
-    }
-    if tokens.iter().any(|t| t == "serif") {
-        return SerifResolution {
-            primary: Some(primary),
-            is_serif: true,
-        };
-    }
-    SerifResolution {
-        primary: Some(primary),
-        is_serif: false,
-    }
-}
-
-/// JS: checks.mjs#checkItalicSerif
-pub fn check_italic_serif(opts: &ItalicSerifOpts) -> Vec<RuleHit> {
-    if opts.font_style.as_deref() != Some("italic") {
-        return Vec::new();
-    }
-    let tag = opts.tag.as_str();
-    if tag != "h1" && !(tag == "h2" && opts.font_size >= 48.0) {
-        return Vec::new();
-    }
-    if opts.font_size < 48.0 {
-        return Vec::new();
-    }
-    let res = resolve_serif(opts.font_family.as_deref());
-    if !res.is_serif {
-        return Vec::new();
-    }
-    let text = slice_utf16_start(js::trim(opts.heading_text.as_deref().unwrap_or("")), 60);
-    vec![RuleHit::new(
-        "italic-serif-display",
-        format!(
-            "italic serif {} ({}) at {}px \"{}\"",
-            tag,
-            res.primary.as_deref().unwrap_or("serif"),
-            number_to_string(math_round(opts.font_size)),
             text
         ),
     )]

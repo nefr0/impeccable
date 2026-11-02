@@ -95,7 +95,7 @@ fn list_rules_scope_type_drops_unscoped_rules() {
     let (code, out, err) = run(&["--list-rules", "--quiet", "--scope", "type"]);
     assert_eq!(code, 0, "{err}");
     let ids: Vec<&str> = out.lines().collect();
-    assert!(ids.contains(&"overused-font"));
+    assert!(ids.contains(&"flat-type-hierarchy"));
     assert!(!ids.contains(&"side-tab"));
     assert!(!ids.contains(&"nested-cards"));
 }

@@ -26,8 +26,6 @@ pub const KNOWN: &[(&str, &[&str])] = &[(
         "checkHoverContrast",
         "isCardLikeFromProps",
         "checkIconTile",
-        "resolveSerif",
-        "checkItalicSerif",
         "isAccentColor",
         "resolveHeroHeadingSizePx",
         "checkHeroEyebrow",
@@ -262,26 +260,6 @@ pub fn call(module: &str, fn_name: &str, args: &[Value]) -> Option<Value> {
                 heading_is_card_title: false,
             };
             hits_to_js(&rules::check_icon_tile(&opts))
-        }
-        "resolveSerif" => {
-            let r = rules::resolve_serif(opt_str(arg(0)).as_deref());
-            Js::Obj(vec![
-                (
-                    "primary".to_string(),
-                    r.primary.map(Js::Str).unwrap_or(Js::Null),
-                ),
-                ("isSerif".to_string(), Js::Bool(r.is_serif)),
-            ])
-        }
-        "checkItalicSerif" => {
-            let opts = rules::ItalicSerifOpts {
-                tag: str_or_empty(f(0, "tag")),
-                font_style: opt_str(f(0, "fontStyle")),
-                font_family: opt_str(f(0, "fontFamily")),
-                font_size: to_number(f(0, "fontSize")),
-                heading_text: opt_str(f(0, "headingText")),
-            };
-            hits_to_js(&rules::check_italic_serif(&opts))
         }
         "isAccentColor" => Js::Bool(rules::is_accent_color(&str_or_empty(arg(0)))),
         "resolveHeroHeadingSizePx" => Js::Num(rules::resolve_hero_heading_size_px(

@@ -1178,37 +1178,10 @@ fn extract_finding_ignore_value_raw(f: &Finding, rule: &str) -> String {
             }
             continue;
         }
-        if let Some(m) = PRIMARY_FONT_RE.captures(text) {
-            return clean_ignore_value_display(&m[1]);
-        }
-        if let Some(m) = GOOGLE_LABEL_RE.captures(text) {
-            return clean_ignore_value_display(&m[1]);
-        }
-        if let Some(m) = FAMILY_RE.captures(text) {
-            return clean_ignore_value_display(&m[1]);
-        }
-        if let Some(m) = GOOGLE_PARAM_RE.captures(text) {
-            return clean_ignore_value_display(&impeccable_detect::config::decode_uri_component(
-                &m[1],
-            ));
-        }
     }
     String::new()
 }
 
-re!(
-    PRIMARY_FONT_RE,
-    format!("(?i:Primary font):{WS}*([^()\n;]+)")
-);
-re!(
-    GOOGLE_LABEL_RE,
-    format!("(?i:Google Fonts):{WS}*([^()\n;]+)")
-);
-re!(
-    FAMILY_RE,
-    format!(r#"(?i:font-family){WS}*:{WS}*["']?([^'",;\n]+)"#)
-);
-re!(GOOGLE_PARAM_RE, "[?&](?i:family)=([^&:;\n]+)");
 re!(ANIMATE_BOUNCE_RE, r"(?-u:\b)(?i:animate-bounce)(?-u:\b)");
 re!(BEZIER_RE, r"(?i:cubic-bezier)\([^)]+\)");
 re!(

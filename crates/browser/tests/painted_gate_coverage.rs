@@ -5,8 +5,7 @@
 //! should-flag twin's measurement and differs only in paint: the base engine
 //! (5ce750e5) reports every one of them.
 //!
-//! - blinking-cursor, bounce-easing, dark-glow, ai-color-palette and
-//!   italic-serif-display skip an element nobody sees; a cursor caught in the
+//! - blinking-cursor, bounce-easing, dark-glow, ai-color-palette skip an element nobody sees; a cursor caught in the
 //!   off phase of its own blink still reports.
 //! - kicker-above-heading skips a pair in a section at `hidden` or on an
 //!   inactive slide.
@@ -108,7 +107,6 @@ fn rules_behind_the_painted_gate_skip_what_nobody_sees() {
         ("bounce-easing", "#flag-bounce"),
         ("dark-glow", "#flag-glow"),
         ("ai-color-palette", "#flag-palette"),
-        ("italic-serif-display", "#flag-italic"),
         // The open menu covers the copy beneath it.
         ("text-occlusion", "#flag-details-copy"),
         ("text-occlusion", "#flag-overhang-title"),
@@ -141,7 +139,6 @@ fn rules_behind_the_painted_gate_skip_what_nobody_sees() {
         ("dark-glow", "#pass-glow-faded"),
         ("dark-glow", "#pass-glow-bar"),
         ("ai-color-palette", "#pass-palette-parked"),
-        ("italic-serif-display", "#pass-italic-hidden"),
     ] {
         assert!(!on(unwanted.0, unwanted.1), "unexpected {unwanted:?} in {flagged:#?}");
     }
