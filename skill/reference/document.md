@@ -16,7 +16,6 @@ colors:
   # ...one entry per extracted color; key = descriptive slug
 typography:
   display:
-    fontFamily: "Cormorant Garamond, Georgia, serif"
     fontSize: "4.5rem"
     fontWeight: 300
     lineHeight: 1
@@ -83,8 +82,8 @@ Decide by scanning first (Scan mode Step 1). If the scan finds no tokens, no com
 
 Search the codebase in priority order:
 
-1. **CSS custom properties**: grep for `--color-`, `--font-`, `--spacing-`, `--radius-`, `--shadow-`, `--ease-`, `--duration-` declarations in CSS files (usually `src/styles/`, `public/css/`, `app/globals.css`, etc.). Record name, value, and the file it's defined in.
-2. **Tailwind config**: if `tailwind.config.{js,ts,mjs}` exists, read the `theme.extend` block for colors, fontFamily, spacing, borderRadius, boxShadow.
+1. **CSS custom properties**: grep for `--color-`, `--spacing-`, `--radius-`, `--shadow-`, `--ease-`, `--duration-` declarations in CSS files (usually `src/styles/`, `public/css/`, `app/globals.css`, etc.). Record name, value, and the file it's defined in.
+2. **Tailwind config**: if `tailwind.config.{js,ts,mjs}` exists, read the `theme.extend` block for colors, spacing, borderRadius, boxShadow.
 3. **CSS-in-JS theme files**: styled-components, emotion, vanilla-extract, stitches; look for `theme.ts`, `tokens.ts`, or equivalent.
 4. **Design token files**: `tokens.json`, `design-tokens.json`, Style Dictionary output, W3C token community group format.
 5. **Component library**: scan the main button, card, input, navigation, dialog components. Note their variant APIs and default styles.
@@ -96,7 +95,7 @@ Search the codebase in priority order:
 Build a structured draft from the discovered tokens. For each token class:
 
 - **Colors**: Group into Primary / Secondary / Tertiary / Neutral (the Material-derived roles Stitch uses). If the project only has one accent, express it as Primary + Neutral; omit Secondary and Tertiary rather than inventing them.
-- **Typography**: Map observed sizes and weights to the Material hierarchy (display / headline / title / body / label). Note font-family stacks and the scale ratio.
+- **Typography**: Map observed sizes and weights to the Material hierarchy (display / headline / title / body / label). Note the scale ratio.
 - **Elevation**: Catalogue the shadow vocabulary. If the project is flat and uses tonal layering instead, that's a valid answer; state it explicitly.
 - **Components**: For each common component (button, card, input, chip, list item, tooltip, nav), extract shape (radius), color assignment, hover/focus treatment, internal padding.
 - **Layout + spacing**: Extract grid, container, breakpoint, rhythm, and density behavior into Layout.
@@ -107,7 +106,7 @@ Build a structured draft from the discovered tokens. For each token class:
 From the auto-extracted tokens, draft the YAML frontmatter now (you'll write it at the top of DESIGN.md in Step 4). This is the machine-readable layer: what the live panel and Stitch's linter consume.
 
 - **Colors**: one entry per extracted color. Key = descriptive slug (`oxblood-deep`, `editorial-magenta`, not `blue-800`). Value = whichever format the project treats as canonical (OKLCH or hex; see the frontmatter rules above). Don't split the source of truth: one format in the frontmatter, don't redefine the same token in prose with a different value.
-- **Typography**: one entry per role (`display`, `headline`, `title`, `body`, `label`). Typography is an object; include only the props that are real for the project (`fontFamily`, `fontSize`, `fontWeight`, `lineHeight`, `letterSpacing`, `fontFeature`, `fontVariation`).
+- **Typography**: one entry per role (`display`, `headline`, `title`, `body`, `label`). Typography is an object; include only the props that are real for the project (`fontSize`, `fontWeight`, `lineHeight`, `letterSpacing`, `fontFeature`, `fontVariation`).
 - **Rounded / Spacing**: whatever scale steps the project actually uses, keyed by whatever scale name the project uses (`sm` / `md` / `lg`, or `surface-sm`, or numeric steps).
 - **Components**: one entry per variant (`button-primary`, `button-primary-hover`, `button-ghost`). Reference primitives via `{colors.X}`, `{rounded.Y}`. If a variant needs a property Stitch's 8-prop set doesn't cover (shadow, focus ring, backdrop-filter), carry the full snippet in the sidecar instead.
 
@@ -167,11 +166,7 @@ colors:
 
 ## Typography
 
-**Display Font:** [Family] (with [fallback])
-**Body Font:** [Family] (with [fallback])
-**Label/Mono Font:** [Family, if distinct]
-
-**Character:** [1-2 sentence personality description of the pairing.]
+**Character:** [1-2 sentence personality description of the type voice.]
 
 ### Hierarchy
 - **Display** ([weight], [size/clamp], [line-height]): [Purpose; where it appears.]
@@ -373,7 +368,7 @@ Per-section guidance in seed mode:
 
 - **Overview**: the chosen design thesis, layout behavior, material character, imagery stance, motion grammar, and reusable signature. Keep the selected first-surface expression in its surface brief; do not promote its composition into the global world.
 - **Colors**: the selected palette strategy and roles. Include values only when the user, an existing asset, or new-work's exploration established them; otherwise mark them `[to be resolved during implementation]`.
-- **Typography**: the selected type character and role relationship. Include font names only when established; otherwise mark the pairing `[to be resolved during implementation]`.
+- **Typography**: the selected type character and role relationship.
 - **Layout**: the selected spatial grammar and responsive behavior, without pretending exact measurements are settled.
 - **Elevation & Depth**: the selected material and depth behavior, stated as an invariant rather than inferred from a generic preset.
 - **Shapes**: the selected form and corner language.

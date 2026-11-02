@@ -17,7 +17,7 @@ part of the engine is fetched at build time.
 ```
 Cargo.toml              the workspace (crates/*), release profile
 rust-toolchain.toml     the channel plus the wasm32 target
-ENGINE_VERSION          which engine release the launcher / npm shim download
+ENGINE_VERSION          informational; the engine is built locally, never downloaded
 .cargo/config.toml      the `cargo xtask` alias
 browser-bundle/         the page JS the in-page bundle is built from
 crates/
@@ -29,7 +29,7 @@ crates/
   live         live mode: server, wrap, accept, manual edits, Svelte/Vue
   skills       install / update / check / link (the old npm CLI verbs)
   comp         comp-fidelity pure libs (raster, png, metrics, fonts)
-  comp-verbs   build-phase, comp-diff, comp-spec, font-match
+  comp-verbs   build-phase, comp-diff, comp-spec (engine-only)
   detect       `impeccable detect`: file walk, config, ignores, output, regex engine
   html         the static HTML engine: parser, cascade, static DOM, rule adapters
   browser      the URL engine: Chrome discovery, CDP, snapshot, visual pass
@@ -61,10 +61,9 @@ IMPECCABLE_BIN=target/release/impeccable node tests/oracle/run.mjs   # the behav
 ```
 
 `bun run test` and the oracle find the binary through `IMPECCABLE_BIN`, then
-`skill/scripts/bin/<os>-<arch>/` (`bun run fetch:engine` downloads the pinned
-release there; `IMPECCABLE_BIN=target/release/impeccable bun run fetch:engine`
-copies a local build), then `target/release/impeccable`, so a plain
-`cargo build --release -p impeccable` is enough.
+`target/release/impeccable`, so a plain `cargo build --release -p impeccable`
+is enough. The engine is a standalone CLI; the skill does not call it and
+nothing downloads it.
 
 Every local server the engine runs (`live-server`, the `serve-question`
 decision page, `component-review serve`) is built on `impeccable_common::http`:
@@ -248,19 +247,8 @@ Remote skill ZIPs require a pinned-key signature before extraction. See
 [bundle signing](BUNDLE-SIGNING.md) for the 1Password setup and the required
 signature-first rollout order.
 
-Two release kinds touch the runtime, in this order:
-
-1. **Engine** (`engine-v<ENGINE_VERSION>`): `bun run release:engine` verifies
-   the version, the npm platform-package pins and a clean tree, then tags and
-   pushes; `.github/workflows/release-engine.yml` builds the five targets and
-   publishes the binaries with `.sha256` sidecars. The launcher, the npm shim
-   and `impeccable install` download from
-   `github.com/pbakaus/impeccable/releases/download/engine-v<X>/` and verify
-   each binary against `skill/scripts/engine-checksums.txt`, never the
-   sidecar. After the release, `node scripts/check-engine-release.mjs --record`
-   rewrites that file; commit it with the `ENGINE_VERSION` bump.
-2. **npm platform packages**, then the **skill** and **CLI** releases, which
-   `scripts/check-engine-release.mjs` gates on the engine release.
+Engine releases, npm platform packages and binary downloads were removed in
+this fork. Build the engine locally with `cargo build --release -p impeccable`.
 
 The extension ships its own vendored WASM core and never execs the engine
 binary, so `bun run release:ext` is exempt from that gate. It does need

@@ -34,7 +34,7 @@ import { applySteerEdits } from '../agent.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(__dirname, '..', '..', '..');
-const LIVE_MD_PATH = path.join(REPO_ROOT, 'skill', 'reference', 'live.md');
+const LIVE_MD_PATH = path.join(REPO_ROOT, 'docs', 'engine', 'reference', 'live.md');
 
 // Frontier default: gpt-5.6-terra at medium reasoning effort. Haiku stayed
 // too far below the models that actually drive live sessions in the field;

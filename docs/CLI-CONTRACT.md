@@ -1,5 +1,7 @@
 # Impeccable CLI contract
 
+> Standalone CLI; the skill does not call it.
+
 The observable behavior of every `impeccable` verb: arguments, environment,
 inputs, stdout and stderr byte for byte, exit codes, files written, network.
 This is the specification an alternate implementation of the scripts has to
