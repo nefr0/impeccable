@@ -1,8 +1,7 @@
-//! JS: skill/scripts/lib/font-fingerprint.mjs
-//!
-//! Size-invariant, text-robust shape features for lettering in a raster.
-//! `fingerprint(img)` returns the feature vector; `distance(a, b)` compares two
-//! vectors. Pure over `Image`; depends only on `metrics::to_gray` and
+//! Lettering measurement in a raster (cap height, line count, glyph count,
+//! ink polarity and density), read by the hero text checks to compare a
+//! build's type size against the comp's. `fingerprint(img)` returns the
+//! measurement. Pure over `Image`; depends only on `metrics::to_gray` and
 //! `raster::resize`. Ported line-for-line, including the f32 gray/coverage
 //! stores and the `+value.toFixed(4)` rounding of the emitted features.
 
@@ -14,10 +13,6 @@ use std::collections::HashMap;
 
 pub const VBINS: usize = 10;
 pub const HQ: [f64; 4] = [0.25, 0.5, 0.75, 0.9];
-pub const Z_CLIP: f64 = 3.0;
-pub const GROSS_W: f64 = 1.5;
-pub const GROSS_STD_WIDTH: f64 = 0.12;
-pub const GROSS_STD_WEIGHT: f64 = 0.12;
 
 /// Feature names in fingerprint order (JS: FEATURES).
 pub static FEATURES: Lazy<Vec<String>> = Lazy::new(|| {
@@ -69,49 +64,6 @@ impl FeatureVec {
             self.vals[i] = v;
         }
     }
-}
-
-/// The fitted per-feature normalization (JS: STATS). `(std, weight)`.
-pub fn stats(key: &str) -> Option<(f64, f64)> {
-    Some(match key {
-        "advance" => (0.07648, 0.0),
-        "advTall" => (0.25331, 0.0),
-        "advX" => (0.05144, 1.5),
-        "advCV" => (0.0857, 1.0),
-        "gap" => (0.02668, 1.0),
-        "xRatio" => (0.02315, 1.0),
-        "descRatio" => (0.17831, 1.0),
-        "stemW" => (0.01922, 1.0),
-        "contrast" => (0.05969, 3.0),
-        "serif" => (0.31477, 0.5),
-        "roundFrac" => (0.09341, 1.0),
-        "densTall" => (0.05708, 2.0),
-        "densX" => (0.07666, 0.0),
-        "runDensity" => (0.18199, 1.0),
-        "vprof0" => (0.01178, 1.0),
-        "vprof1" => (0.01331, 1.0),
-        "vprof2" => (0.02745, 1.0),
-        "vprof3" => (0.03046, 1.0),
-        "vprof4" => (0.01933, 1.0),
-        "vprof5" => (0.01737, 1.0),
-        "vprof6" => (0.0336, 1.0),
-        "vprof7" => (0.03195, 1.0),
-        "vprof8" => (0.03271, 1.0),
-        "vprof9" => (0.02951, 1.0),
-        "hrun25" => (0.01751, 1.0),
-        "hrun50" => (0.02124, 1.0),
-        "hrun75" => (0.04503, 1.0),
-        "hrun90" => (0.06844, 1.0),
-        "vrun25" => (0.01895, 1.0),
-        "vrun50" => (0.02405, 1.0),
-        "vrun75" => (0.06199, 1.0),
-        "vrun90" => (0.09486, 1.0),
-        "colq25" => (0.02906, 1.0),
-        "colq75" => (0.18204, 1.0),
-        "wq25" => (0.19862, 1.0),
-        "wq75" => (0.09687, 1.0),
-        _ => return None,
-    })
 }
 
 // ---- small numeric helpers (JS med/pct/mean/modeOf) ------------------------
@@ -1118,78 +1070,4 @@ pub fn fingerprint(img: &Image, opts: &FpOpts) -> Option<Fingerprint> {
         weight,
         feats: out_feats,
     })
-}
-
-// ---- distance --------------------------------------------------------------
-
-pub struct GrossGap {
-    pub width: Option<f64>,
-    pub weight: Option<f64>,
-}
-
-/// JS: grossGap(a, b). `a`/`b` are anything with `get(key) -> Option<f64>`.
-pub fn gross_gap(a: &dyn Fn(&str) -> Option<f64>, b: &dyn Fn(&str) -> Option<f64>) -> GrossGap {
-    let pick = |f: &dyn Fn(&str) -> Option<f64>, keys: &[&str]| -> Option<(&'static str, f64)> {
-        for &k in keys {
-            if let Some(v) = f(k) {
-                // return the &'static str variant
-                let ks: &'static str = match k {
-                    "advX" => "advX",
-                    "advTall" => "advTall",
-                    "advance" => "advance",
-                    "densTall" => "densTall",
-                    "densX" => "densX",
-                    "stemW" => "stemW",
-                    _ => continue,
-                };
-                return Some((ks, v));
-            }
-        }
-        None
-    };
-    let wa = pick(a, &["advX", "advTall", "advance"]);
-    let wb = wa.and_then(|(k, _)| b(k).map(|v| (k, v)));
-    let ha = pick(a, &["densTall", "densX", "stemW"]);
-    let hb = ha.and_then(|(k, _)| b(k).map(|v| (k, v)));
-    let gap = |x: Option<(&str, f64)>, y: Option<(&str, f64)>| -> Option<f64> {
-        match (x, y) {
-            (Some((_, xv)), Some((_, yv))) if xv > 0.0 && yv > 0.0 => Some((yv / xv).ln().abs()),
-            _ => None,
-        }
-    };
-    GrossGap { width: gap(wa, wb), weight: gap(ha, hb) }
-}
-
-/// JS: distance(a, b) with defaults p=1, zClip=3, gross=true.
-pub fn distance(a: &dyn Fn(&str) -> Option<f64>, b: &dyn Fn(&str) -> Option<f64>) -> f64 {
-    let (mut d, mut wsum) = (0f64, 0f64);
-    let g = gross_gap(a, b);
-    for (val, std) in [(g.width, GROSS_STD_WIDTH), (g.weight, GROSS_STD_WEIGHT)] {
-        if let Some(gv) = val {
-            let z = Z_CLIP.min(gv / std);
-            d += GROSS_W * z;
-            wsum += GROSS_W;
-        }
-    }
-    for k in FEATURES.iter() {
-        let s = match stats(k) {
-            Some((std, w)) if w != 0.0 => (std, w),
-            _ => continue,
-        };
-        let (av, bv) = (a(k), b(k));
-        if let (Some(av), Some(bv)) = (av, bv) {
-            let z = Z_CLIP.min((av - bv).abs() / s.0);
-            d += s.1 * z;
-            wsum += s.1;
-        }
-    }
-    if wsum == 0.0 {
-        return f64::INFINITY;
-    }
-    d / wsum
-}
-
-/// Convenience: distance where both sides are `FeatureVec`-like accessors.
-pub fn distance_fp(a: &Fingerprint, b: &FeatureVec) -> f64 {
-    distance(&|k| a.get(k), &|k| b.get(k))
 }

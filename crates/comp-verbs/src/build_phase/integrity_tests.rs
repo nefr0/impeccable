@@ -1766,13 +1766,9 @@ fn every_comp_measuring_entry_point_refuses_an_edited_comp() {
 }
 
 #[test]
-fn font_match_and_a_spec_less_comp_diff_refuse_an_edited_comp_too() {
+fn a_spec_less_comp_diff_refuses_an_edited_comp_too() {
     let ws = approved_build();
     composite_into_comp(&ws);
-    let (mut io, c) = captured(&ws);
-    let mut renderer = crate::font_match::NoRenderer;
-    assert_eq!(crate::font_match::run(&["--measure", "photo"].map(String::from), &mut io, &mut renderer), 2);
-    assert!(out_err(&c).contains("has changed since approval"), "{}", out_err(&c));
     ws.write("build.png", &png_io::encode_png(&approved_comp_image(), &[]).unwrap());
     let (mut io, c) = captured(&ws);
     assert_eq!(crate::comp_diff::run(&["--comp", APPROVED, "--build", "build.png", "--no-files"].map(String::from), &mut io), 2);
