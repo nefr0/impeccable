@@ -14,8 +14,8 @@ describe('skill reference authoring contracts', () => {
     assert.match(recordDecision, /development-only contract/);
     assert.match(recordDecision, /under `## Direction contract` in the relevant surface brief/);
     assert.match(recordDecision, /read the brief once more/i);
-    assert.match(recordDecision, /all six contract blocks and the seed reference/);
-    assert.match(recordDecision, /SEED REFERENCE concept-seed printed .*never the raw seed key/);
+    assert.match(recordDecision, /all six contract blocks/);
+    assert.doesNotMatch(recordDecision, /seed/i);
 
     for (const block of ['THESIS', 'OWN-WORLD', 'STORY', 'FIRST VIEWPORT', 'FORM', 'FINISH']) {
       assert.match(recordDecision, new RegExp(`${block}:`));
@@ -56,15 +56,13 @@ describe('skill reference authoring contracts', () => {
     assert.match(documenter, /no choice arrived, write nothing/);
   });
 
-  it('skips the detector and its degraded banner on native critique targets', () => {
+  it('skips browser evidence and its degraded banner on native critique targets', () => {
     const critique = readFileSync(join(ROOT, 'skill/reference/critique.md'), 'utf-8').replace(/\r\n?/g, '\n');
     const orchestration = critique.match(/### Assessment Orchestration\n([\s\S]*?)\n<codex>/)?.[1] ?? '';
 
-    assert.match(orchestration, /\*\*Native platforms\*\* \(`ios` \/ `android` \/ `adaptive`\): Assessment B does not apply/);
+    assert.match(orchestration, /\*\*Native platforms\*\* \(`ios` \/ `android` \/ `adaptive`\): Assessment B's browser evidence does not apply/);
     assert.match(orchestration, /skip both sub-agent gates below, the Codex permission question included/);
-    assert.match(critique, /Native platforms run A alone \(see Assessment Orchestration\)/);
-    assert.match(critique, /- Native: `Method: design review only \(detector not applicable, native platform\)`/);
-    assert.match(critique, /write `not applicable \(native platform\)` instead/);
+    assert.match(critique, /- Native: `Method: design review plus craft-floor source scan \(native platform\)`/);
   });
 
   it('keeps reduced-motion guidance on the animation build path', () => {
@@ -78,65 +76,26 @@ describe('skill reference authoring contracts', () => {
     assert.match(verify, /reduced[- ]motion/i);
   });
 
-  it('uses an exact content fingerprint before inheriting a critique snapshot', () => {
-    const critique = readFileSync(join(ROOT, 'skill/reference/critique.md'), 'utf-8').replace(/\r\n?/g, '\n');
-    const polish = readFileSync(join(ROOT, 'skill/reference/polish.md'), 'utf-8').replace(/\r\n?/g, '\n');
+  it('has Setup read PRODUCT.md and DESIGN.md itself, with no engine loader', () => {
+    const skill = readFileSync(join(ROOT, 'skill/SKILL.src.md'), 'utf-8').replace(/\r\n?/g, '\n');
+    const setup = skill.match(/## Setup\n([\s\S]*?)\n## How to design/)?.[1] ?? '';
 
-    assert.match(critique, /records an exact content fingerprint/);
-    assert.match(polish, /compares the file's exact current content fingerprint/);
-    assert.match(polish, /Unchanged staged, unstaged, or untracked content remains current/);
-    assert.match(polish, /any byte change, deletion, or replacement with a non-file closes the backlog/);
-    assert.match(polish, /latest "<resolved target>" --json/);
-    assert.match(polish, /exact `snapshot_file` identity/);
-    assert.match(polish, /close "<resolved target>" "<snapshot_file returned by latest>"/);
-    assert.match(polish, /if a newer critique landed meanwhile, its backlog stays live/);
-    assert.doesNotMatch(polish, /git status|git log/);
+    assert.match(setup, /Read the project context yourself; there is no loader/);
+    assert.match(setup, /<!-- rule:skill-setup-read-context -->/);
+    assert.match(setup, /PRODUCT\.md/);
+    assert.match(setup, /DESIGN\.md/);
+    assert.doesNotMatch(skill, /impeccable context/);
   });
 
-  it('routes visual decision fallback through wait capability and start failure', () => {
+  it('has new-work write directions itself from the mode file and ask through the harness', () => {
     const newWork = readFileSync(join(ROOT, 'skill/reference/new-work.md'), 'utf-8').replace(/\r\n?/g, '\n');
-    const visualDecisionPage = newWork.match(
-      /A harness that can leave a shell blocked[\s\S]*?<!-- rule:skill-visual-decision-page -->/,
-    )?.[0] ?? '';
 
-    assert.match(visualDecisionPage, /cannot hold a blocking `--wait`/);
-    assert.match(visualDecisionPage, /without starting the page/);
-    assert.match(visualDecisionPage, /structured tool/);
-    assert.match(visualDecisionPage, /first reply/);
-    assert.match(visualDecisionPage, /exit code 2 from starting it/);
-    assert.match(visualDecisionPage, /wait check before starting/);
-    // Codex's exec_command returns a still-running --wait as a pollable session;
-    // that is not a harness that backgrounds the command away (astra/sol, 2026-10-04).
-    assert.match(visualDecisionPage, /session you can poll holds the wait/);
-    assert.match(visualDecisionPage, /rerun `--wait` only after it exits without an answer/);
-    assert.doesNotMatch(
-      visualDecisionPage,
-      /only exit code 2 from starting it routes the decision to the structured tool; that exit is the fallback/,
-    );
-  });
-
-  it('lists every card kind the engine accepts in the identity rule', () => {
-    const newWork = readFileSync(join(ROOT, 'skill/reference/new-work.md'), 'utf-8').replace(/\r\n?/g, '\n');
-    const telemetry = readFileSync(join(ROOT, 'crates/context/src/telemetry.rs'), 'utf-8');
-    const cardKinds = telemetry.match(/pub const CARD_KINDS: .*? = \[(.*?)\];/)?.[1].match(/[a-z]+/g) ?? [];
-    const identityRule = newWork.match(/Every option declares its identity: ([\s\S]*?), and each challenger carries/)?.[1] ?? '';
-
-    assert.ok(cardKinds.includes('dealt'));
-    for (const kind of cardKinds) {
-      assert.match(identityRule, new RegExp(`\`${kind}\``));
+    for (const mode of ['persuade', 'operate', 'read']) {
+      assert.match(newWork, new RegExp(`\\[mode-${mode}\\.md\\]\\(mode-${mode}\\.md\\)`));
     }
-  });
-
-  it('sizes the hand by the verdicts, never by a requested count', () => {
-    const newWork = readFileSync(join(ROOT, 'skill/reference/new-work.md'), 'utf-8').replace(/\r\n?/g, '\n');
-    const handComposition = newWork.match(
-      /A hand holds at most three full-card challengers[\s\S]*?Add one card for your own top-ranked grounded candidate/,
-    )?.[0] ?? '';
-
-    assert.match(handComposition, /follows the verdicts, never a number the user named/);
-    assert.match(handComposition, /say in one line why it is smaller, and offer a re-roll/);
-    assert.match(handComposition, /A declined challenger is never promoted to fill a slot/);
-    assert.match(handComposition, /standing exit does not count toward a requested number once the user has seen and rejected it/);
+    assert.match(newWork, /read the `## Directions` section of the mode's file/);
+    assert.match(newWork, /\{\{ask_instruction\}\}/);
+    assert.doesNotMatch(newWork, /decision page|serve-question|concept-seed|comp-spec|comp-diff|impeccable context/);
   });
 
   it('keeps touch-gesture verification in the adapt, audit, and harden references', () => {

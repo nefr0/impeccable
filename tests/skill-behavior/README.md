@@ -1,6 +1,7 @@
 # Skill-behavior tests
 
-LLM-backed scenarios that verify how the impeccable skill drives context,
+LLM-backed scenarios that verify how the impeccable skill reads project context
+itself (Setup, marker `skill-setup-read-context`), loads
 command-reference, new-work, and native-platform loading. Each scenario runs
 against the default Anthropic, OpenAI, and Google models. DeepSeek remains
 available through `IMPECCABLE_SKILL_BEHAVIOR_MODELS`.
@@ -22,11 +23,8 @@ Requires `.env` at repo root with at least one of `ANTHROPIC_API_KEY`,
 `OPENAI_API_KEY`, `GOOGLE_CLOUD_API_KEY`, `DEEPSEEK_API_KEY`. Providers without a key are
 skipped, not failed.
 
-Also requires the engine binary (`bun run fetch:engine`, or `IMPECCABLE_BIN`).
-The staged skill dir ships the launcher (`scripts/impeccable`); the harness
-exports `IMPECCABLE_BIN` into every bash call the agent makes, so the launcher
-resolves the binary in the generated fixture without a download. Without a
-binary the suites skip.
+The skill is text only: the harness offers no engine binary and the scenarios
+run with bash denied. Agents read PRODUCT.md / DESIGN.md with the read tool.
 
 To run a single scenario against one model:
 
@@ -294,11 +292,7 @@ The trace is the source of truth, not the model's free-form reply.
 
 File tools are workspace-scoped; bash is a real host shell, **not a security
 sandbox**. Use disposable synthetic fixtures. Shell helpers do not inherit
-provider API keys/auth tokens; model calls still use the parent's keys. The
-harness always sets `IMPECCABLE_QUESTION_DISABLED=1` for shell calls so real
-decision pages cannot wait for a nonexistent browser user. The engine returns
-its genuine structured-question fallback; browser decisions have separate E2E.
-
+provider API keys/auth tokens; model calls still use the parent's keys. 
 Set `IMPECCABLE_SKILL_BEHAVIOR_TRACE_DIR=<directory>` to retain per-turn JSON
 with model, prompt, tool results, response ordering, usage, and finish reason.
 Progress and failed turns retain their tool traces too; only completed turns
@@ -306,10 +300,6 @@ carry the full response sequence and final usage.
 These are local diagnostic artifacts; inspect before sharing. Successful reads
 or full reference content in shell output count as loading; filename mentions,
 denied commands, and failed reads do not.
-
-Context-only controls permit the real launcher with an optional workspace-relative
-`--target`; compound commands remain rejected. The target form is part of the
-skill's Setup contract, not a launcher failure.
 
 ## Release investigation (2026-09-07)
 
@@ -382,28 +372,27 @@ results remain the completed measurements.
 
 | # | Setup | Assertion |
 |---|---|---|
-| 1 | empty workspace | runs `impeccable context`; loads `reference/init.md` before implementation; automation is not an init bypass |
-| 2 | PRODUCT.md only | runs `impeccable context` 1-3 times; loads `reference/new-work.md` to resolve visual authority, establish a world when needed, and develop the surface |
-| 3 | PRODUCT.md + DESIGN.md | runs `impeccable context` 1-3 times; receives the committed design system and loads `reference/new-work.md` for the task-scoped concept |
-| 4 | PRODUCT.md + DESIGN.md, context already loaded in turn 1 | turn 2 does **not** re-run `impeccable context` |
-| 5 | PRODUCT.md without the legacy `## Register` field and no DESIGN.md | runs `impeccable context`; greenfield craft loads `reference/new-work.md`, not init, to establish the missing world |
+| 1 | empty workspace | reads PRODUCT.md (or lists the project); loads `reference/init.md` before implementation; automation is not an init bypass |
+| 2 | PRODUCT.md only | reads PRODUCT.md; loads `reference/new-work.md` to resolve visual authority, establish a world when needed, and develop the surface |
+| 3 | PRODUCT.md + DESIGN.md | reads PRODUCT.md and DESIGN.md; loads `reference/new-work.md` for the task-scoped concept |
+| 4 | PRODUCT.md + DESIGN.md, context already loaded in turn 1 | turn 2 does **not** re-read PRODUCT.md |
+| 5 | PRODUCT.md without the legacy `## Register` field and no DESIGN.md | reads PRODUCT.md; greenfield craft loads `reference/new-work.md`, not init, to establish the missing world |
 | 6 | PRODUCT.md + DESIGN.md + a minimal `index.html`; prompt is `/impeccable polish` | loads `reference/polish.md` |
 | 7 | same fixture; prompt is `/impeccable audit` | loads `reference/audit.md` |
 | 8 | PRODUCT.md + DESIGN.md + a SvelteKit scaffold (`src/app.css`, components, `+page.svelte`); prompt is `/impeccable polish src/routes/+page.svelte` | reads at least one project code file (CSS / component / page) — not just the skill's reference files |
-| 9 | PRODUCT.md + `index.html` + a seeded update cache with a newer version (`skillVersion` copy-mode so `impeccable context` has a `SKILL.md` to version-check against); prompt is `/impeccable polish index.html` | `impeccable context` runs and its output carries the `UPDATE_AVAILABLE` directive (proven via captured bash output); the agent does **not** auto-run `npx impeccable update` (it must ask first) |
-| 10 | no PRODUCT.md + a minimal `index.html`; prompt is `/impeccable polish index.html` | runs `impeccable context`, loads `reference/polish.md`, and does **not** divert into `reference/init.md` |
-| 11 | empty workspace; prompt is `/impeccable shape ...` | runs `impeccable context`; resolves `reference/init.md` before planning the surface |
-| 12 | empty workspace; prompt is natural-language build intent with no command word | runs `impeccable context`; resolves `reference/init.md` before implementation |
-| 13 | empty workspace; prompt is `/impeccable teach` | runs `impeccable context` and diverts into `reference/init.md` because `teach` aliases `init` |
-| 14 | PRODUCT.md with `## Platform: ios` (native iOS app); prompt is `/impeccable craft a tide detail screen` | `impeccable context` runs and emits the contents of `reference/ios.md` directly, placing native conventions in context without a second model-directed read |
+| 10 | no PRODUCT.md + a minimal `index.html`; prompt is `/impeccable polish index.html` | reads context, loads `reference/polish.md`, and does **not** divert into `reference/init.md` |
+| 11 | empty workspace; prompt is `/impeccable shape ...` | reads context; resolves `reference/init.md` before planning the surface |
+| 12 | empty workspace; prompt is natural-language build intent with no command word | reads context; resolves `reference/init.md` before implementation |
+| 13 | empty workspace; prompt is `/impeccable teach` | reads context and diverts into `reference/init.md` because `teach` aliases `init` |
+| 14 | PRODUCT.md with `## Platform: ios` (native iOS app); prompt is `/impeccable craft a tide detail screen` | Setup reads `reference/ios.md` itself, placing native conventions in context |
 | 15 | same iOS fixture; prompt is `/impeccable audit` | agent loads `reference/audit.native.md` (the Commands-table native variant, routed instead of `audit.md`) |
 | 16 | existing surface, with and without PRODUCT.md; asks where to start | completes relevant advice without edits, interviews, critique archives, menu scans, or explicit invented refinement prerequisites; reference coverage is diagnostic |
 | 17 | existing surface; asks whether critique is required before polish | completes read-only advice distinguishing assessment from implementation and explaining critique is optional; reference coverage is diagnostic |
 | 18 | existing surface; explicitly requests polish followed by a next-command recommendation | loads `polish.md` rather than substituting workflow advice for the requested work |
-| 19 | tiny spacing edit with PRODUCT.md + DESIGN.md; Bash denied, a real-loader success control, a denied-launcher planning-only case, and a denied-launcher documentation case (PRODUCT.md + index.html, no DESIGN.md) | edits require successful playbook/craft-floor reads and a pre-edit denial warning; planning stays read-only and skips craft-floor; documentation requires successful document.md and source reads before any DESIGN.md write, with the denial disclosed before the first tool call after the denied launcher |
-| 20 | PRODUCT.md + DESIGN.md + `index.html`; prompt is `/impeccable generate 2 bold variants of the hero heading` | loads `reference/generate.md`, and before any `live.md` read (live.md alone is the misroute) |
-| 21 | same fixture; prompt is natural language with no command word ("Show me a few quieter versions of the hero heading in the browser so I can pick one.") | infers `reference/generate.md` before any `live.md` read |
-| 22 | same fixture; prompt is `Make the hero heading bolder.` | does **not** load `reference/generate.md` (a plain refinement stays out of live); which playbook the refinement lands on is existing routing's business, not this guard's |
+| 19 | tiny spacing edit with PRODUCT.md + DESIGN.md; a planning-only case; and a documentation case (PRODUCT.md + index.html, no DESIGN.md) | edits require successful PRODUCT.md, DESIGN.md, playbook and craft-floor reads first; planning stays read-only and skips craft-floor; documentation requires successful document.md and source reads before writing DESIGN.md, without rewriting PRODUCT.md |
+
+*The sections below record engine-era runs (launcher, `impeccable context`, live
+mode). They are historical baselines; the skill no longer ships those paths.*
 
 ## Setup launcher-failure branch (2026-09-06, PR #750)
 

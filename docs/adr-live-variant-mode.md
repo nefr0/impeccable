@@ -1,5 +1,7 @@
 # ADR: Live Variant Mode
 
+Engine-only; the skill no longer ships live mode.
+
 **Status:** Implemented
 **Date:** 2026-04-12
 **Author:** Paul Bakaus + Claude
