@@ -19,12 +19,8 @@
  * Requires the `claude` CLI on PATH; skips cleanly otherwise.
  *
  * The subtree under test is whatever git holds at ./plugin, which the sync
- * workflow regenerates on main (`bun run build:release`). Between the launcher
- * swap landing and that sync, ./plugin still ships the Node-era scripts; the
- * loader inventory asserted here is unaffected either way (the launcher layout
- * was verified against a local `bun run build:release` before the swap
- * merged), and tests/hook-build.test.mjs gates its launcher-path assertions on
- * the synced output.
+ * workflow regenerates on main (`bun run build:release`). The skill is text
+ * only: no hooks and no scripts directory.
  *
  * Run with: bun run test:plugin-e2e
  */
@@ -143,10 +139,10 @@ describe('committed plugin subtree loads in a real Claude Code', { skip }, () =>
     }
   });
 
-  it('discovers the packaged hooks', () => {
-    assert.equal(componentCount('Hooks'), 3);
-    assert.match(detailsOutput, /SessionStart/);
-    assert.match(detailsOutput, /PostToolUse/);
-    assert.match(detailsOutput, /Stop/);
+  it('ships no hooks and no scripts directory', () => {
+    assert.match(detailsOutput, /Component inventory/);
+    assert.doesNotMatch(detailsOutput, /Hooks\s+\((?!0\))\d+\)/);
+    assert.equal(fs.existsSync(path.join(PLUGIN_DIR, 'hooks')), false);
+    assert.equal(fs.existsSync(path.join(PLUGIN_DIR, 'skills', 'impeccable', 'scripts')), false);
   });
 });

@@ -116,22 +116,4 @@ describe('provider block transformer integration', () => {
     expect(agent).not.toContain('Claude agent guidance.');
     expect(agent).not.toContain('<codex>');
   });
-
-  test('writes nested script artifacts', () => {
-    const transform = createTransformer(baseConfig);
-    const skills = [{
-      name: 'test',
-      description: 'Test',
-      body: 'Body',
-      scripts: [
-        { name: 'detect.mjs', content: 'export {};\n' },
-        { name: 'detector/detect-antipatterns.mjs', content: 'export const bundled = true;\n' },
-      ],
-    }];
-    transform(skills, TEST_DIR);
-
-    const detector = path.join(TEST_DIR, 'cursor/.test/skills/test/scripts/detector/detect-antipatterns.mjs');
-    expect(fs.existsSync(detector)).toBe(true);
-    expect(fs.readFileSync(detector, 'utf-8')).toContain('bundled = true');
-  });
 });

@@ -18,7 +18,6 @@ const SAMPLE_SKILL = {
   description: 'Use when the user wants to design, redesign, shape, critique, audit, polish, clarify, distill, harden, optimize, adapt, animate, colorize, extract, or otherwise improve a frontend interface.',
   body: '# Impeccable\n\nSkill body here.',
   references: [],
-  scripts: [],
   agents: [],
 };
 

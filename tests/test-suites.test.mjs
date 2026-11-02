@@ -12,12 +12,12 @@ import {
 } from '../scripts/test-suites.mjs';
 
 describe('test suite registry', () => {
-  it('separates protocol checkpoints from opt-in browser-backed completion', () => {
+  it('keeps protocol checkpoints opt-in and the removed workflow suites gone', () => {
     assert.deepEqual(suiteFiles(['skill-behavior']), ['tests/skill-behavior/scenarios.test.mjs']);
-    assert.ok(OPT_IN_SUITES.includes('skill-workflow'));
-    assert.equal(SUITES['skill-workflow'].needsPlaywright, true);
-    assert.ok(suiteFiles(['skill-workflow']).includes('tests/skill-workflow/full-build.test.mjs'));
-    assert.equal(DEFAULT_SUITES.includes('skill-workflow'), false);
+    for (const removed of ['skill-workflow', 'new-work-e2e']) {
+      assert.equal(OPT_IN_SUITES.includes(removed), false);
+      assert.equal(removed in SUITES, false);
+    }
   });
   it('assigns every test file to a default or opt-in suite', () => {
     const allDiscovered = findTestFiles();

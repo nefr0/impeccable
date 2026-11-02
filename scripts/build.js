@@ -488,7 +488,7 @@ function validateAskInstructionSites(rootDir) {
 /**
  * Every shipped `impeccable.cmd` must have CRLF line endings: cmd.exe cannot
  * find `call :label` targets in an LF-only batch file (#1098). The build
- * writes CRLF itself (readSkillScripts), so a failure here means that
+ * is expected to write CRLF itself, so a failure here means that
  * guarantee regressed. Checks dist/ (the release zips are packed from it)
  * and, on a release build, the tracked harness dirs and plugin subtrees.
  *
@@ -554,18 +554,6 @@ function mirrorDirContentsSync(src, dest) {
       fs.copyFileSync(srcPath, destPath);
     }
   }
-}
-
-function syncRootPluginPayloads(distDir, rootDir) {
-  const synced = [];
-  for (const config of Object.values(PROVIDERS)) {
-    if (!config.pluginPayload) continue;
-    const src = path.join(distDir, config.provider, config.configDir, config.pluginPayload.dest);
-    if (!fs.existsSync(src)) continue;
-    mirrorDirContentsSync(src, path.join(rootDir, config.configDir, config.pluginPayload.dest));
-    synced.push(path.join(config.configDir, config.pluginPayload.dest).split(path.sep).join('/'));
-  }
-  return synced;
 }
 
 function syncEngineVersionFile(rootDir) {
@@ -743,11 +731,6 @@ async function build() {
     const syncedCommands = syncRootCommands(DIST_DIR, ROOT_DIR, syncConfigs);
     if (syncedCommands.length > 0) {
       console.log(`📟 Synced provider commands to: ${syncedCommands.join(', ')}`);
-    }
-
-    const syncedPlugins = syncRootPluginPayloads(DIST_DIR, ROOT_DIR);
-    if (syncedPlugins.length > 0) {
-      console.log(`🪝 Synced provider plugins to: ${syncedPlugins.join(', ')}`);
     }
 
     // Remove deprecated skill stubs from local harness dirs. They exist

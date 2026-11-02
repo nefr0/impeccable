@@ -380,63 +380,30 @@ Please audit {{target}} for technical quality. Ask {{model}} for help.`;
   });
 });
 
-// The skill's scripts dir ships the launcher, its Windows twin, the pinned
-// engine VERSION, the page JS, and command-metadata.json. Nothing else: the
-// verbs live in the engine binary the launcher runs, and platform binaries
-// (scripts/bin/) are fetched per machine, never read as source.
+// The skill is text only: the source read carries no scripts payload.
 describe('skill scripts payload', () => {
   const ROOT_DIR = process.cwd();
   const { skills } = utils.readSourceFiles(ROOT_DIR);
-  const scripts = skills[0]?.scripts ?? [];
-  const names = new Set(scripts.map((s) => s.name));
 
-  test('ships the launcher, VERSION, page JS, and command metadata', () => {
-    for (const expected of [
-      'impeccable', 'impeccable.cmd', 'VERSION', 'command-metadata.json',
-      'live-browser.js', 'live-browser-dom.js', 'live-browser-session.js', 'modern-screenshot.umd.js',
-    ]) {
-      expect(names.has(expected)).toBe(true);
+  test('reads no scripts from the skill source', () => {
+    expect(skills[0]?.scripts ?? []).toEqual([]);
+  });
+
+  test('emits no scripts directory for the Claude Code and Codex outputs', () => {
+    const outDir = path.join(ROOT_DIR, 'test-tmp-no-scripts');
+    fs.rmSync(outDir, { recursive: true, force: true });
+    try {
+      transformers.transformClaudeCode(skills, outDir);
+      transformers.transformCodex(skills, outDir);
+      const claudeSkill = path.join(outDir, 'claude-code', '.claude', 'skills', 'impeccable');
+      const codexSkill = path.join(outDir, 'codex', '.codex', 'skills', 'impeccable');
+      expect(fs.existsSync(path.join(claudeSkill, 'SKILL.md'))).toBe(true);
+      expect(fs.existsSync(path.join(claudeSkill, 'scripts'))).toBe(false);
+      expect(fs.existsSync(path.join(codexSkill, 'scripts'))).toBe(false);
+      expect(fs.existsSync(path.join(outDir, 'claude-code', '.claude', 'hooks'))).toBe(false);
+    } finally {
+      fs.rmSync(outDir, { recursive: true, force: true });
     }
-  });
-
-  test('ships the Windows launcher with CRLF line endings (#1098)', () => {
-    // cmd.exe cannot resolve `call :label` in an LF-only batch file, so the
-    // payload is CRLF whatever line endings this checkout holds.
-    const cmd = scripts.find((s) => s.name === 'impeccable.cmd');
-    expect(cmd.content).toContain('\r\n');
-    expect(cmd.content).not.toMatch(/(^|[^\r])\n/);
-  });
-
-  test('ships no engine entry points and no bundled detector', () => {
-    // The engine verbs live in the binary; the only Node scripts allowed in
-    // the payload are the comp-fidelity build pipeline and its libs, which
-    // have not moved into the engine yet.
-    const allowedNodeScripts = new Set([
-      'build-phase.mjs',
-      'comp-diff.mjs',
-      'comp-spec.mjs',
-      'font-match.mjs',
-      'lib/font-fingerprint.mjs',
-      'lib/font-index.mjs',
-      'lib/hero-checks.mjs',
-      'lib/image-metrics.mjs',
-      'lib/png.mjs',
-      'lib/raster.mjs',
-    ]);
-    const stray = [...names].filter((n) =>
-      (n.endsWith('.mjs') || n.startsWith('detector/') || n.startsWith('lib/')) && !allowedNodeScripts.has(n));
-    expect(stray).toEqual([]);
-  });
-
-  test('never reads platform binaries as source', () => {
-    expect([...names].filter((n) => n.startsWith('bin/'))).toEqual([]);
-  });
-
-  test('the launcher is executable and VERSION matches ENGINE_VERSION', () => {
-    const launcher = scripts.find((s) => s.name === 'impeccable');
-    expect(launcher.mode & 0o111).not.toBe(0);
-    const version = scripts.find((s) => s.name === 'VERSION');
-    expect(version.content.trim()).toBe(fs.readFileSync(path.join(ROOT_DIR, 'ENGINE_VERSION'), 'utf-8').trim());
   });
 });
 
@@ -470,7 +437,6 @@ describe('degraded-mode fallback reference generation', () => {
       'asset-producer.md',
       'documenter.md',
       'finish-reviewer.md',
-      'manual-edit-applier.md',
     ]);
   });
 
@@ -484,7 +450,7 @@ describe('degraded-mode fallback reference generation', () => {
   });
 
   test('the disclosure stays out of the output contract (#1245)', () => {
-    expect(readDegraded('codex', '.codex', 'manual-edit-applier')).toContain('outside the output contract');
+    expect(readDegraded('codex', '.codex', 'documenter')).toContain('outside the output contract');
   });
 
   test('generated fallbacks pass through provider-block compilation (codex keeps its block, others strip it)', () => {
@@ -547,7 +513,6 @@ describe('GitHub Copilot custom agent generation', () => {
       'impeccable-asset-producer.agent.md',
       'impeccable-documenter.agent.md',
       'impeccable-finish-reviewer.agent.md',
-      'impeccable-manual-edit-applier.agent.md',
     ]);
   });
 
@@ -574,10 +539,6 @@ describe('GitHub Copilot custom agent generation', () => {
       expect(content).not.toContain('{{');
       expect(content).not.toMatch(/<!--\s*rule:/);
     }
-    // The asset producer's body references the skill's scripts dir; the
-    // placeholder resolves to the provider-aware path.
-    const assetProducer = fs.readFileSync(path.join(AGENTS_DIR, 'impeccable-asset-producer.agent.md'), 'utf-8');
-    expect(assetProducer).toContain('.github/skills/impeccable/scripts');
     // A distinctive body phrase proves the agent body itself was inlined.
     const reviewer = fs.readFileSync(path.join(AGENTS_DIR, 'impeccable-finish-reviewer.agent.md'), 'utf-8');
     expect(reviewer).toContain('material_fixes');
@@ -590,7 +551,6 @@ describe('GitHub Copilot custom agent generation', () => {
       'asset-producer.md',
       'documenter.md',
       'finish-reviewer.md',
-      'manual-edit-applier.md',
     ]);
   });
 });
@@ -618,7 +578,6 @@ describe('Cursor subagent generation', () => {
       'impeccable-asset-producer.md',
       'impeccable-documenter.md',
       'impeccable-finish-reviewer.md',
-      'impeccable-manual-edit-applier.md',
     ]);
   });
 
@@ -636,7 +595,7 @@ describe('Cursor subagent generation', () => {
       expect(frontmatter).not.toContain('effort:');
       expect(frontmatter).not.toContain('maxTurns:');
       // The finish reviewer is the only role whose tool list has no Write or
-      // Edit; it reviews, the other three write.
+      // Edit; it reviews, the others write.
       if (name === 'impeccable-finish-reviewer.md') {
         expect(frontmatter).toContain('readonly: true');
       } else {
@@ -651,12 +610,10 @@ describe('Cursor subagent generation', () => {
       expect(content).not.toContain('{{');
       expect(content).not.toMatch(/<!--\s*rule:/);
     }
-    const assetProducer = fs.readFileSync(path.join(AGENTS_DIR, 'impeccable-asset-producer.md'), 'utf-8');
-    expect(assetProducer).toContain('.cursor/skills/impeccable/scripts');
   });
 });
 
-// Regression guard for the gap that shipped literal `{{scripts_path}}` inside
+// Regression guard for the gap that shipped literal placeholders inside
 // the Codex dists' nested agent .toml: three separate code paths emit an agent
 // body, and one of them skipped placeholder substitution and rule-marker
 // stripping. Assert every surface, not just the one that was broken.
@@ -665,17 +622,16 @@ describe('agent bodies resolve placeholders on every surface that ships them', (
   const AGENT_TEST_DIR = path.join(ROOT, 'test-tmp-agent-placeholders');
   const DIST = path.join(AGENT_TEST_DIR, 'dist');
 
-  // [emitted file, the scripts path that provider installs to]
   const SURFACES = [
     // Nested Codex .toml: the skill install is the whole delivery for these.
-    ['codex/.codex/skills/impeccable/agents/impeccable_asset_producer.toml', '.codex/skills/impeccable/scripts'],
-    ['agents/.agents/skills/impeccable/agents/impeccable_asset_producer.toml', '.agents/skills/impeccable/scripts'],
+    'codex/.codex/skills/impeccable/agents/impeccable_asset_producer.toml',
+    'agents/.agents/skills/impeccable/agents/impeccable_asset_producer.toml',
     // Native agent files.
-    ['claude-code/.claude/agents/impeccable-asset-producer.md', '.claude/skills/impeccable/scripts'],
-    ['github/.github/agents/impeccable-asset-producer.agent.md', '.github/skills/impeccable/scripts'],
-    ['grok/.grok/agents/impeccable-asset-producer.md', '.grok/skills/impeccable/scripts'],
+    'claude-code/.claude/agents/impeccable-asset-producer.md',
+    'github/.github/agents/impeccable-asset-producer.agent.md',
+    'grok/.grok/agents/impeccable-asset-producer.md',
     // Degraded fallback reference generated from the same agent definition.
-    ['codex/.codex/skills/impeccable/reference/degraded/asset-producer.md', '.codex/skills/impeccable/scripts'],
+    'codex/.codex/skills/impeccable/reference/degraded/asset-producer.md',
   ];
 
   beforeEach(() => {
@@ -693,21 +649,14 @@ describe('agent bodies resolve placeholders on every surface that ships them', (
     if (fs.existsSync(AGENT_TEST_DIR)) fs.rmSync(AGENT_TEST_DIR, { recursive: true, force: true });
   });
 
-  test('the asset producer ships a runnable embed-prompt command, never the raw token', () => {
-    for (const [relPath, scriptsPath] of SURFACES) {
-      const content = fs.readFileSync(path.join(DIST, relPath), 'utf-8');
-      expect(content).toContain(`${scriptsPath}/impeccable embed-prompt`);
-      expect(content).not.toContain('{{scripts_path}}');
-    }
-  });
-
-  // A markdown link resolves against its own file, so it differs per surface.
-  test('the asset producer links to component-review.md from every surface', () => {
-    for (const [relPath] of SURFACES) {
+  // X
+  test('every reference link in the asset producer resolves from every surface', () => {
+    for (const relPath of SURFACES) {
       const file = path.join(DIST, relPath);
-      const match = fs.readFileSync(file, 'utf-8').match(/\[component-review\.md\]\(([^)]+)\)/);
-      expect(match).not.toBeNull();
-      expect(fs.existsSync(path.resolve(path.dirname(file), match[1]))).toBe(true);
+      const links = [...fs.readFileSync(file, 'utf-8').matchAll(/\]\(([^)\s#]+\.md)\)/g)].map((match) => match[1]);
+      for (const link of links) {
+        expect(fs.existsSync(path.resolve(path.dirname(file), link))).toBe(true);
+      }
     }
   });
 
@@ -721,7 +670,7 @@ describe('agent bodies resolve placeholders on every surface that ships them', (
           name: 'impeccable-synthetic',
           codexName: 'impeccable_synthetic',
           description: 'synthetic agent',
-          body: 'Run `{{scripts_path}}/impeccable embed-prompt` and ask {{model}}. See [x.md]({{reference_path}}/x.md). <!-- rule:synthetic-marker -->',
+          body: 'Ask {{model}}. See [x.md]({{reference_path}}/x.md). <!-- rule:synthetic-marker -->',
         },
       ],
     };
@@ -743,10 +692,9 @@ describe('agent bodies resolve placeholders on every surface that ships them', (
       path.join(synthDist, 'codex/.codex/skills/impeccable/agents/impeccable_synthetic.toml'),
       'utf-8'
     );
-    expect(codexToml).toContain('.codex/skills/impeccable/scripts/impeccable embed-prompt');
     // The model name belongs to PROVIDER_PLACEHOLDERS and may change; what
     // this pins is that {{model}} resolved to something.
-    expect(codexToml).toMatch(/and ask \S+\./);
+    expect(codexToml).toMatch(/Ask \S+\./);
   });
 });
 
