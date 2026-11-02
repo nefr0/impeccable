@@ -1,0 +1,57 @@
+{
+  "title": "Impeccable fork (nefr0)",
+  "subtitle": "Text-only skill; optional engine is built locally and makes no remote calls; no font family tooling",
+  "items": [
+    {
+      "group": "Agent harness",
+      "id": "harness",
+      "icon": "bot",
+      "color": "indigo",
+      "items": [
+        {"id": "skill", "label": "Impeccable skill", "tech": "SKILL.md + reference/*.md", "desc": "Design guidance; reads project context itself", "icon": "book-open", "status": "modified"},
+        {"id": "hooks", "label": "Provider hooks", "tech": "hooks.json, settings.json", "desc": "Ran detector after UI edits", "icon": "webhook", "status": "removed"},
+        {"id": "scripts", "label": "Skill scripts", "tech": "skill/scripts in provider output", "desc": "Launcher, live-browser JS", "icon": "file-code", "status": "removed"}
+      ]
+    },
+    {
+      "group": "User project",
+      "id": "project",
+      "icon": "folder",
+      "color": "teal",
+      "items": [
+        {"id": "context", "label": "Project context", "tech": "PRODUCT.md, DESIGN.md", "desc": "Plus .impeccable/surfaces briefs", "icon": "file-text"}
+      ]
+    },
+    {
+      "group": "Optional engine CLI",
+      "id": "engine",
+      "icon": "cpu",
+      "color": "orange",
+      "items": [
+        {"id": "launcher", "label": "Launcher", "tech": "impeccable, cli.js", "desc": "Local binary lookup only", "icon": "terminal", "status": "modified"},
+        {"id": "binary", "label": "Engine binary", "tech": "Rust, cargo build", "desc": "No TLS; localhost HTTP only", "icon": "box", "status": "modified"},
+        {"id": "detector", "label": "Detector + comp", "tech": "crates/detect, comp", "desc": "Font rules and font-match removed", "icon": "scan-search", "status": "modified"}
+      ]
+    },
+    {
+      "group": "Remote services",
+      "id": "remote",
+      "icon": "cloud",
+      "color": "slate",
+      "items": [
+        {"id": "releases", "label": "GitHub releases", "tech": "engine binaries", "desc": "Prebuilt download", "icon": "download", "status": "removed"},
+        {"id": "api", "label": "impeccable.style API", "tech": "bundle, version, roll", "desc": "Plus telemetry ping", "icon": "globe", "status": "removed"},
+        {"id": "fonts", "label": "Google Fonts / OpenAI", "tech": "fonts, image API", "desc": "Font CSS and image calls", "icon": "type", "status": "removed"}
+      ]
+    }
+  ],
+  "edges": [
+    {"from": "skill", "to": "context", "label": "reads directly", "status": "added"},
+    {"from": "skill", "to": "launcher", "label": "engine verbs", "status": "removed"},
+    {"from": "launcher", "to": "binary", "label": "exec local build"},
+    {"from": "binary", "to": "detector", "label": "runs"},
+    {"from": "launcher", "to": "releases", "label": "download binary", "status": "removed"},
+    {"from": "binary", "to": "api", "label": "fetch and ping", "status": "removed"},
+    {"from": "detector", "to": "fonts", "label": "fetch fonts, images", "status": "removed"}
+  ]
+}
