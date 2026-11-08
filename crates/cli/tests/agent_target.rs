@@ -859,6 +859,7 @@ fn live_generate_boot_and_open_run_the_lane_from_a_cold_project() {
         .env("IMPECCABLE_LIVE_COPY_AGENT", "off")
         .env("IMPECCABLE_DEV_URL_CANDIDATES", format!("http://127.0.0.1:{}/", dev_port))
         .env("IMPECCABLE_AGENT_TARGET_TIMEOUT_MS", "400")
+        .env_remove("IMPECCABLE_BROWSER")
         .output()
         .expect("cli");
     let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
@@ -1017,6 +1018,7 @@ fn live_generate_asks_the_harness_to_open_the_page_instead_of_a_second_browser()
         .env("IMPECCABLE_PROVIDER_ID", "cursor")
         .env("IMPECCABLE_DEV_URL_CANDIDATES", "http://127.0.0.1:1/")
         .env("BROWSER", opener.to_string_lossy().to_string())
+        .env_remove("IMPECCABLE_BROWSER")
         .output()
         .expect("cli");
     let guarded: serde_json::Value = serde_json::from_str(String::from_utf8_lossy(&out.stdout).trim()).unwrap();
